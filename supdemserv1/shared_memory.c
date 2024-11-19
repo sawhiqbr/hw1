@@ -67,9 +67,7 @@ int add_demand(int agent_id, int x, int y, int nA, int nB, int nC)
   demand->nA = nA;
   demand->nB = nB;
   demand->nC = nC;
-  shared_data->demand_count++;
-  // TODO: do some match calc!
-
+  check_match(agent_id, shared_data->demand_count, 1);
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
@@ -77,22 +75,9 @@ int add_demand(int agent_id, int x, int y, int nA, int nB, int nC)
 int remove_demand(int agent_id, int demand_id)
 {
   pthread_mutex_lock(&shared_data->mutex);
-  if (shared_data->demand_count <= 0)
-  {
-    int debug_demand_count = shared_data->demand_count;
-    pthread_mutex_unlock(&shared_data->mutex);
-    printf("Debug: there are no demands: %d\n", debug_demand_count);
-    return -1;
-  }
-  shared_data->demands[demand_id].agent_id = 0;
-  shared_data->demands[demand_id].x = 0;
-  shared_data->demands[demand_id].y = 0;
-  shared_data->demands[demand_id].nA = 0;
-  shared_data->demands[demand_id].nB = 0;
-  shared_data->demands[demand_id].nC = 0;
-  shared_data->demand_count--;
+  int result = remove_demand_nolock(agent_id, demand_id);
   pthread_mutex_unlock(&shared_data->mutex);
-  return 0;
+  return result;
 }
 
 int add_supply(int agent_id, int x, int y, int distance, int nA, int nB, int nC)
@@ -112,9 +97,7 @@ int add_supply(int agent_id, int x, int y, int distance, int nA, int nB, int nC)
   supply->nA = nA;
   supply->nB = nB;
   supply->nC = nC;
-  shared_data->supply_count++;
-
-  // TODO: do some match calc!
+  check_match(agent_id, shared_data->supply_count, 0);
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
@@ -122,23 +105,9 @@ int add_supply(int agent_id, int x, int y, int distance, int nA, int nB, int nC)
 int remove_supply(int agent_id, int supply_id)
 {
   pthread_mutex_lock(&shared_data->mutex);
-  if (shared_data->supply_count <= 0)
-  {
-    int debug_supply_count = shared_data->supply_count;
-    pthread_mutex_unlock(&shared_data->mutex);
-    printf("Debug: there are no supplies: %d\n", debug_supply_count);
-    return -1;
-  }
-  shared_data->supplies[supply_id].agent_id = 0;
-  shared_data->supplies[supply_id].x = 0;
-  shared_data->supplies[supply_id].y = 0;
-  shared_data->supplies[supply_id].distance = 0;
-  shared_data->supplies[supply_id].nA = 0;
-  shared_data->supplies[supply_id].nB = 0;
-  shared_data->supplies[supply_id].nC = 0;
-  shared_data->supply_count--;
+  int result = remove_supply_nolock(agent_id, supply_id);
   pthread_mutex_unlock(&shared_data->mutex);
-  return 0;
+  return result;
 }
 
 int add_watch(int agent_id, int x, int y, int distance)
@@ -204,7 +173,7 @@ int *list_agent_demands(int agent_id)
   {
     pthread_mutex_unlock(&shared_data->mutex);
     printf("Debug: there is no such agent: %d\n", agent_id);
-    return -1;
+    return NULL;
   }
   int index = 0;
   for (int i = 0; i < shared_data->demand_count; i++)
@@ -212,7 +181,7 @@ int *list_agent_demands(int agent_id)
     if (shared_data->demands[i].agent_id == agent_id)
     {
       return_list[index] = i;
-      realloc(&return_list, sizeof(int) * (index + 1));
+      realloc(return_list, sizeof(int) * (index + 1));
     }
   }
   return return_list;
@@ -226,7 +195,7 @@ int *list_agent_supplies(int agent_id)
   {
     pthread_mutex_unlock(&shared_data->mutex);
     printf("Debug: there is no such agent: %d\n", agent_id);
-    return -1;
+    return NULL;
   }
   int index = 0;
   for (int i = 0; i < shared_data->supply_count; i++)
@@ -234,7 +203,7 @@ int *list_agent_supplies(int agent_id)
     if (shared_data->supplies[i].agent_id == agent_id)
     {
       return_list[index] = i;
-      realloc(&return_list, sizeof(int) * (index + 1));
+      realloc(return_list, sizeof(int) * (index + 1));
     }
   }
   return return_list;
@@ -248,6 +217,7 @@ int *list_all_demands()
   {
     return_list[i] = i;
   }
+  pthread_mutex_unlock(&shared_data->mutex);
   return return_list;
 }
 
@@ -259,11 +229,13 @@ int *list_all_supplies()
   {
     return_list[i] = i;
   }
+  pthread_mutex_unlock(&shared_data->mutex);
   return return_list;
 }
 
 int check_match(int agent_id, int demand_or_supply_id, int is_demand)
 {
+  int had_a_match = 0;
   if (is_demand)
   {
     for (int i = 0; i < shared_data->supply_count; i++)
@@ -276,14 +248,15 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
         if (shared_data->supplies[i].nA == 0 && shared_data->supplies[i].nB == 0 && shared_data->supplies[i].nC == 0)
         {
           // TODO: need a solution to double lock problem as we already have the lock
-          remove_supply(shared_data->supplies[i].agent_id, i);
+          remove_supply_nolock(shared_data->supplies[i].agent_id, i);
         }
         // TODO: need a solution to double lock problem as we already have the lock
-        remove_demand(agent_id, demand_or_supply_id);
+        remove_demand_nolock(agent_id, demand_or_supply_id);
 
         // TODO: somehow notify both agents
         // notify_agent(agent_id);
         // notify_agent(shared_data->supplies[i].agent_id);
+        had_a_match = 1;
         break;
       }
     }
@@ -300,18 +273,20 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
         if (shared_data->supplies[demand_or_supply_id].nA == 0 && shared_data->supplies[demand_or_supply_id].nB == 0 && shared_data->supplies[demand_or_supply_id].nC == 0)
         {
           // TODO: need a solution to double lock problem as we already have the lock
-          remove_supply(shared_data->supplies[demand_or_supply_id].agent_id, demand_or_supply_id);
+          remove_supply_nolock(shared_data->supplies[demand_or_supply_id].agent_id, demand_or_supply_id);
         }
         // TODO: need a solution to double lock problem as we already have the lock
-        remove_demand(agent_id, i);
+        remove_demand_nolock(agent_id, i);
 
         // TODO: somehow notify both agents
         // notify_agent(agent_id);
         // notify_agent(shared_data->supplies[i].agent_id);
+        had_a_match = 1;
         break;
       }
     }
   }
+  return had_a_match;
 }
 
 int check_case(int demand_id, int supply_id)
@@ -322,4 +297,42 @@ int check_case(int demand_id, int supply_id)
   int bool4 = shared_data->demands[demand_id].nC < shared_data->supplies[supply_id].nC;
 
   return bool1 & bool2 & bool3 & bool4;
+}
+
+int remove_demand_nolock(int agent_id, int demand_id)
+{
+  // Assume mutex is already locked
+  if (shared_data->demand_count <= 0)
+  {
+    printf("Debug: there are no demands\n");
+    return -1;
+  }
+  // Remove demand logic
+  shared_data->demands[demand_id].agent_id = 0;
+  shared_data->demands[demand_id].x = 0;
+  shared_data->demands[demand_id].y = 0;
+  shared_data->demands[demand_id].nA = 0;
+  shared_data->demands[demand_id].nB = 0;
+  shared_data->demands[demand_id].nC = 0;
+  shared_data->demand_count--;
+  return 0;
+}
+
+int remove_supply_nolock(int agent_id, int supply_id)
+{
+  // Assume mutex is already locked
+  if (shared_data->supply_count <= 0)
+  {
+    printf("Debug: there are no supplies\n");
+    return -1;
+  }
+  shared_data->supplies[supply_id].agent_id = 0;
+  shared_data->supplies[supply_id].x = 0;
+  shared_data->supplies[supply_id].y = 0;
+  shared_data->supplies[supply_id].distance = 0;
+  shared_data->supplies[supply_id].nA = 0;
+  shared_data->supplies[supply_id].nB = 0;
+  shared_data->supplies[supply_id].nC = 0;
+  shared_data->supply_count--;
+  return 0;
 }
