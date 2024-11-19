@@ -29,9 +29,59 @@ int main(int argc, char *argv[])
   int listen_fd;
   if (conn[0] == '@')
   {
+    // Create Unix Domain Socket
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(struct sockaddr_un));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, conn + 1, sizeof(addr.sun_path) - 1);
+
+    listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (listen_fd == -1)
+    {
+      perror("unix socket init problem");
+      exit(EXIT_FAILURE);
+    }
+    unlink(addr.sun_path);
+    if (bind(listen_fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) == -1)
+    {
+      perror("unix socket bind problem");
+      exit(EXIT_FAILURE);
+    }
   }
   else
   {
+    // Create TCP socket
+    char *ip_str = strtok(conn, ":");
+    char *port_str = strtok(NULL, ":");
+    if (!ip_str || !port_str)
+    {
+      fprintf(stderr, "Invalid conn format. Should be ip:port\n");
+      exit(EXIT_FAILURE);
+    }
+    int port = atoi(port_str);
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(struct sockaddr_in));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    if (inet_pton(AF_INET, ip_str, &addr.sin_addr) <= 0)
+    {
+      perror("inet_pton error");
+      exit(EXIT_FAILURE);
+    }
+
+    listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd == -1)
+    {
+      perror("tcp socket init problem");
+      exit(EXIT_FAILURE);
+    }
+
+    if (bind(listen_fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1)
+    {
+      perror("tcp socket bind problem");
+      exit(EXIT_FAILURE);
+    }
   }
 
   if (listen(listen_fd, SOMAXCONN) == -1)
