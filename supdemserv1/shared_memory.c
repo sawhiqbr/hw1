@@ -44,7 +44,6 @@ void init_shared_memory()
 
 void destroy_shared_memory()
 {
-  // Destroy mutex
   pthread_mutex_destroy(&shared_data->mutex);
 
   // Unmap shared memory
@@ -69,6 +68,8 @@ int add_demand(int agent_id, int x, int y, int nA, int nB, int nC)
   demand->nB = nB;
   demand->nC = nC;
   shared_data->demand_count++;
+  // TODO: do some match calc!
+
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
@@ -112,6 +113,8 @@ int add_supply(int agent_id, int x, int y, int distance, int nA, int nB, int nC)
   supply->nB = nB;
   supply->nC = nC;
   shared_data->supply_count++;
+
+  // TODO: do some match calc!
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
@@ -147,12 +150,14 @@ int add_watch(int agent_id, int x, int y, int distance)
     printf("Debug: exceeded max watches/agents\n");
     return -1;
   }
-  watch_t *watch = &shared_data->supplies[shared_data->watch_count++];
+  watch_t *watch = &shared_data->watches[agent_id];
+  // only up the watch count if new client is added, don't if update is made
+  if (watch->distance == 0)
+    shared_data->watch_count++;
   watch->agent_id = agent_id;
   watch->x = x;
   watch->y = y;
   watch->distance = distance;
-  shared_data->watch_count++;
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
@@ -174,4 +179,147 @@ int remove_watch(int agent_id)
   shared_data->watch_count--;
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
+}
+
+int move(int agent_id, int x, int y)
+{
+  pthread_mutex_lock(&shared_data->mutex);
+  if (agent_id >= MAX_AGENTS)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    printf("Debug: there is no such agent: %d\n", agent_id);
+    return -1;
+  }
+  shared_data->watches[agent_id].x = x;
+  shared_data->watches[agent_id].y = y;
+  pthread_mutex_unlock(&shared_data->mutex);
+  return 0;
+}
+
+int *list_agent_demands(int agent_id)
+{
+  int *return_list = malloc(sizeof(int));
+  pthread_mutex_lock(&shared_data->mutex);
+  if (agent_id >= MAX_AGENTS)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    printf("Debug: there is no such agent: %d\n", agent_id);
+    return -1;
+  }
+  int index = 0;
+  for (int i = 0; i < shared_data->demand_count; i++)
+  {
+    if (shared_data->demands[i].agent_id == agent_id)
+    {
+      return_list[index] = i;
+      realloc(&return_list, sizeof(int) * (index + 1));
+    }
+  }
+  return return_list;
+}
+
+int *list_agent_supplies(int agent_id)
+{
+  int *return_list = malloc(sizeof(int));
+  pthread_mutex_lock(&shared_data->mutex);
+  if (agent_id >= MAX_AGENTS)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    printf("Debug: there is no such agent: %d\n", agent_id);
+    return -1;
+  }
+  int index = 0;
+  for (int i = 0; i < shared_data->supply_count; i++)
+  {
+    if (shared_data->supplies[i].agent_id == agent_id)
+    {
+      return_list[index] = i;
+      realloc(&return_list, sizeof(int) * (index + 1));
+    }
+  }
+  return return_list;
+}
+
+int *list_all_demands()
+{
+  pthread_mutex_lock(&shared_data->mutex);
+  int *return_list = malloc(sizeof(int) * shared_data->demand_count);
+  for (int i = 0; i < shared_data->demand_count; i++)
+  {
+    return_list[i] = i;
+  }
+  return return_list;
+}
+
+int *list_all_supplies()
+{
+  pthread_mutex_lock(&shared_data->mutex);
+  int *return_list = malloc(sizeof(int) * shared_data->supply_count);
+  for (int i = 0; i < shared_data->supply_count; i++)
+  {
+    return_list[i] = i;
+  }
+  return return_list;
+}
+
+int check_match(int agent_id, int demand_or_supply_id, int is_demand)
+{
+  if (is_demand)
+  {
+    for (int i = 0; i < shared_data->supply_count; i++)
+    {
+      if (check_case(demand_or_supply_id, i))
+      {
+        shared_data->supplies[i].nA -= shared_data->demands[demand_or_supply_id].nA;
+        shared_data->supplies[i].nB -= shared_data->demands[demand_or_supply_id].nB;
+        shared_data->supplies[i].nC -= shared_data->demands[demand_or_supply_id].nC;
+        if (shared_data->supplies[i].nA == 0 && shared_data->supplies[i].nB == 0 && shared_data->supplies[i].nC == 0)
+        {
+          // TODO: need a solution to double lock problem as we already have the lock
+          remove_supply(shared_data->supplies[i].agent_id, i);
+        }
+        // TODO: need a solution to double lock problem as we already have the lock
+        remove_demand(agent_id, demand_or_supply_id);
+
+        // TODO: somehow notify both agents
+        // notify_agent(agent_id);
+        // notify_agent(shared_data->supplies[i].agent_id);
+        break;
+      }
+    }
+  }
+  else
+  {
+    for (int i = 0; i < shared_data->demand_count; i++)
+    {
+      if (check_case(i, demand_or_supply_id))
+      {
+        shared_data->supplies[demand_or_supply_id].nA -= shared_data->demands[i].nA;
+        shared_data->supplies[demand_or_supply_id].nB -= shared_data->demands[i].nB;
+        shared_data->supplies[demand_or_supply_id].nC -= shared_data->demands[i].nC;
+        if (shared_data->supplies[demand_or_supply_id].nA == 0 && shared_data->supplies[demand_or_supply_id].nB == 0 && shared_data->supplies[demand_or_supply_id].nC == 0)
+        {
+          // TODO: need a solution to double lock problem as we already have the lock
+          remove_supply(shared_data->supplies[demand_or_supply_id].agent_id, demand_or_supply_id);
+        }
+        // TODO: need a solution to double lock problem as we already have the lock
+        remove_demand(agent_id, i);
+
+        // TODO: somehow notify both agents
+        // notify_agent(agent_id);
+        // notify_agent(shared_data->supplies[i].agent_id);
+        break;
+      }
+    }
+  }
+}
+
+int check_case(int demand_id, int supply_id)
+{
+  int bool1 = (shared_data->supplies[supply_id].distance > (abs(shared_data->demands[demand_id].x - shared_data->supplies[supply_id].x) + abs(shared_data->demands[demand_id].y - shared_data->supplies[supply_id].y)));
+  int bool2 = shared_data->demands[demand_id].nA < shared_data->supplies[supply_id].nA;
+  int bool3 = shared_data->demands[demand_id].nB < shared_data->supplies[supply_id].nB;
+  int bool4 = shared_data->demands[demand_id].nC < shared_data->supplies[supply_id].nC;
+
+  return bool1 & bool2 & bool3 & bool4;
 }
