@@ -27,8 +27,22 @@ void agent_process(int client_fd)
   // Register agent in shared memory if needed
 
   // Create command handler thread
+  if (pthread_create(&cmd_thread, NULL, command_handler_thread, args) != 0)
+  {
+    perror("pthread_create");
+    close(client_fd);
+    free(args);
+    exit(EXIT_FAILURE);
+  }
 
   // Create notification thread
+  if (pthread_create(&notif_thread, NULL, notification_thread, args) != 0)
+  {
+    perror("pthread_create");
+    close(client_fd);
+    free(args);
+    exit(EXIT_FAILURE);
+  }
 
   // Wait for threads to finish
   pthread_join(cmd_thread, NULL);
@@ -47,6 +61,62 @@ void *command_handler_thread(void *arg)
 
   while (1)
   {
+    ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
+    if (bytes_read <= 0)
+    {
+      // Client closed connection or error
+      break;
+    }
+    buffer[bytes_read] = '\0';
+
+    // Parse and handle commands
+    char command[100];
+
+    if (strcmp(command, "move") == 0)
+    {
+      // TODO: Implement move logic
+      write(client_fd, "OK\n", 3);
+    }
+    else if (strcmp(command, "supply") == 0)
+    {
+      // TODO: Implement supply logic
+      write(client_fd, "OK\n", 3);
+    }
+    else if (strcmp(command, "watch") == 0)
+    {
+      // TODO: Implement watch logic
+      write(client_fd, "OK\n", 3);
+    }
+    else if (strcmp(command, "unwatch") == 0)
+    {
+      // TODO: Implement unwatch logic
+      write(client_fd, "OK\n", 3);
+    }
+    else if (strcmp(command, "mydemands") == 0)
+    {
+      // TODO: Implement mydemands logic
+    }
+    else if (strcmp(command, "mysupplies") == 0)
+    {
+      // TODO: Implement mysupplies logic
+    }
+    else if (strcmp(command, "listdemands") == 0)
+    {
+      // TODO: Implement listdemands logic
+    }
+    else if (strcmp(command, "listsupplies") == 0)
+    {
+      // TODO: Implement listsupplies logic
+    }
+    else if (strcmp(command, "quit") == 0)
+    {
+      break;
+    }
+    else
+    {
+      // Unknown command
+      write(client_fd, "Unknown command\n", 16);
+    }
   }
 
   return NULL;

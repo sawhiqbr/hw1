@@ -14,6 +14,4 @@ int remove_supply(int agent_id, int supply_id);
 int add_watch(int agent_id, int x, int y, int distance);
 int remove_watch(int agent_id);
 
-// Add more functions as needed
-
 #endif // SHARED_MEMORY_H
