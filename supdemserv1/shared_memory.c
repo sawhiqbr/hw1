@@ -336,3 +336,21 @@ int remove_supply_nolock(int agent_id, int supply_id)
   shared_data->supply_count--;
   return 0;
 }
+
+void get_agent_position(int agent_id, int *x, int *y)
+{
+  pthread_mutex_lock(&shared_data->mutex);
+  *x = shared_data->watches[agent_id].x;
+  *y = shared_data->watches[agent_id].y;
+  pthread_mutex_unlock(&shared_data->mutex);
+}
+
+void get_demand_t_list(int *demand_ids, int index, demand_t *demand)
+{
+  demand = &shared_data->demands[demand_ids[index]];
+}
+
+void get_supply_t_list(int *supply_ids, int index, supply_t *supply)
+{
+  supply = &shared_data->supplies[supply_ids[index]];
+}

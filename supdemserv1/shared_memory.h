@@ -26,4 +26,9 @@ int *list_all_supplies();
 
 int check_match(int agent_id, int demand_or_supply_id, int is_demand);
 
+void get_agent_position(int agent_id, int *x, int *y);
+
+void get_demand_t_list(int *demand_ids, int index, demand_t *demand);
+
+void get_supply_t_list(int *supply_ids, int index, supply_t *supply);
 #endif // SHARED_MEMORY_H
