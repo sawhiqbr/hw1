@@ -1,7 +1,9 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pthread
+CFLAGS = -Wall -Wextra -pthread -lrt -g -lpthread
 
 OBJS = supdemserv.o agent.o shared_memory.o
+
+all: supdemserv tester
 
 supdemserv: $(OBJS)
 	$(CC) $(CFLAGS) -o supdemserv $(OBJS)
@@ -12,10 +14,12 @@ agent.o: agent.c agent.h shared_memory.h data_structures.h
 
 shared_memory.o: shared_memory.c shared_memory.h data_structures.h
 
-tester.o: tester.c
+tester: tester.o
 	$(CC) $(CFLAGS) -o tester tester.c -pthread
+
+tester.o: tester.c
 
 clean:
 	rm -f *.o supdemserv tester
 
-.PHONY: clean
+.PHONY: clean all

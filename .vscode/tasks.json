@@ -1,0 +1,21 @@
+{
+  "tasks": [
+    {
+      "type": "shell",
+      "label": "C/C++: gcc build active file",
+      "command": "make",
+      "options": {
+        "cwd": "${workspaceFolder}/supdemserv1"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "detail": "Build using Makefile"
+    }
+  ],
+  "version": "2.0.0"
+}

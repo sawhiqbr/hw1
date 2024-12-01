@@ -22,12 +22,13 @@ char *trim_whitespace(char *str);
 
 void agent_process(int client_fd)
 {
+  printf("Agent process started for client %d\n", client_fd);
   pthread_t cmd_thread, notif_thread;
   agent_args_t *args = malloc(sizeof(agent_args_t));
   args->client_fd = client_fd;
 
   get_next_agent_id(&args->agent_id);
-
+  printf("Next agent id: %d\n", args->agent_id);
   // Register agent in shared memory if needed
 
   // Create command handler thread
@@ -81,7 +82,7 @@ void *command_handler_thread(void *arg)
     while ((newline_pos = strchr(line_start, '\n')) != NULL)
     {
       *newline_pos = '\0'; // Replace newline with null terminator
-
+      printf("Command: %s\n", line_start);
       // Now line_start points to a complete command string
       handle_command(args, line_start);
 
@@ -104,12 +105,13 @@ void *notification_thread(void *arg)
   int client_fd = args->client_fd;
   int agent_id = args->agent_id;
 
-  // TODO: Implement notification handling
   // Wait for notifications from shared memory and send to client
 
   while (1)
   {
-    notify_agent(agent_id, client_fd);
+    printf("Notifying client %d\n", client_fd);
+    notify_client(agent_id, client_fd);
+    printf("Notified client %d\n", client_fd);
   }
 
   return NULL;
@@ -232,20 +234,21 @@ void handle_command(agent_args_t *args, char *command_str)
       // Send demands to client
       char response[1024];
       response[0] = '\0';
-      // int total_demands = ...; // Get the total number of demands
-      // snprintf(response, sizeof(response), "There are %d demands in total.\n", total_demands);
-      // strcat(response, "X       |Y       |A    |B    |C    |\n");
-      // strcat(response, "-------+-------+-----+-----+-----+\n");
+      int total_demands = 0;
+      for (int i = 0; demand_ids[i] != -1; i++)
+      {
+        total_demands++;
+      }
+      snprintf(response, sizeof(response), "There are %d demands in total.\n", total_demands);
+      strcat(response, "X       |Y       |A    |B    |C    |\n");
+      strcat(response, "-------+-------+-----+-----+-----+\n");
       for (int i = 0; demand_ids[i] != -1; i++)
       {
         demand_t *demand;
         get_demand_t_list(demand_ids, i, demand);
         char line[128];
-        // snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
-        //          demand.x, demand.y, demand.nA, demand.nB, demand.nC);
-        snprintf(line, sizeof(line), "%d %d %d %d %d %d\n",
-                 demand_ids[i], demand->x, demand->y,
-                 demand->nA, demand->nB, demand->nC);
+        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
+                 demand->x, demand->y, demand->nA, demand->nB, demand->nC);
         strcat(response, line);
       }
       write(client_fd, response, strlen(response));
@@ -264,14 +267,21 @@ void handle_command(agent_args_t *args, char *command_str)
       // Send supplies to client
       char response[1024];
       response[0] = '\0';
+      int total_supplies = 0;
+      for (int i = 0; supply_ids[i] != -1; i++)
+      {
+        total_supplies++;
+      }
+      snprintf(response, sizeof(response), "There are %d supplies in total.\n", total_supplies);
+      strcat(response, "X       |Y       |A    |B    |C    |\n");
+      strcat(response, "-------+-------+-----+-----+-----+\n");
       for (int i = 0; supply_ids[i] != -1; i++)
       {
         supply_t *supply;
         get_supply_t_list(supply_ids, i, supply);
         char line[128];
-        snprintf(line, sizeof(line), "%d %d %d %d %d %d\n",
-                 supply_ids[i], supply->x, supply->y,
-                 supply->nA, supply->nB, supply->nC);
+        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
+                 supply->x, supply->y, supply->nA, supply->nB, supply->nC);
         strcat(response, line);
       }
       write(client_fd, response, strlen(response));
@@ -290,14 +300,21 @@ void handle_command(agent_args_t *args, char *command_str)
       // Send demands to client
       char response[1024];
       response[0] = '\0';
+      int total_demands = 0;
+      for (int i = 0; demand_ids[i] != -1; i++)
+      {
+        total_demands++;
+      }
+      snprintf(response, sizeof(response), "There are %d demands in total.\n", total_demands);
+      strcat(response, "X       |Y       |A    |B    |C    |\n");
+      strcat(response, "-------+-------+-----+-----+-----+\n");
       for (int i = 0; demand_ids[i] != -1; i++)
       {
         demand_t *demand;
         get_demand_t_list(demand_ids, i, demand);
         char line[128];
-        snprintf(line, sizeof(line), "%d %d %d %d %d %d\n",
-                 demand_ids[i], demand->x, demand->y,
-                 demand->nA, demand->nB, demand->nC);
+        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
+                 demand->x, demand->y, demand->nA, demand->nB, demand->nC);
         strcat(response, line);
       }
       write(client_fd, response, strlen(response));
@@ -316,14 +333,21 @@ void handle_command(agent_args_t *args, char *command_str)
       // Send supplies to client
       char response[1024];
       response[0] = '\0';
+      int total_supplies = 0;
+      for (int i = 0; supply_ids[i] != -1; i++)
+      {
+        total_supplies++;
+      }
+      snprintf(response, sizeof(response), "There are %d supplies in total.\n", total_supplies);
+      strcat(response, "X       |Y       |A    |B    |C    |\n");
+      strcat(response, "-------+-------+-----+-----+-----+\n");
       for (int i = 0; supply_ids[i] != -1; i++)
       {
         supply_t *supply;
         get_supply_t_list(supply_ids, i, supply);
         char line[128];
-        snprintf(line, sizeof(line), "%d %d %d %d %d %d\n",
-                 supply_ids[i], supply->x, supply->y,
-                 supply->nA, supply->nB, supply->nC);
+        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
+                 supply->x, supply->y, supply->nA, supply->nB, supply->nC);
         strcat(response, line);
       }
       write(client_fd, response, strlen(response));

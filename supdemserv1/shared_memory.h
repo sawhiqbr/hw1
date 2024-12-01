@@ -36,7 +36,7 @@ void get_supply_t_list(int *supply_ids, int index, supply_t *supply);
 
 void get_next_agent_id(int *agent_id);
 
-void notify_agent(int agent_id, int client_fd);
+void notify_client(int agent_id, int client_fd);
 
 int remove_demand_nolock(int agent_id, int demand_id);
 

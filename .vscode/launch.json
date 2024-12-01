@@ -1,0 +1,41 @@
+{
+  "configurations": [
+    {
+      "name": "C/C++: gcc build and debug active file",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/supdemserv1/supdemserv",
+      "args": ["@supdemserv.sock", "100", "100"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/supdemserv1",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set Disassembly Flavor to Intel",
+          "text": "-gdb-set disassembly-flavor intel",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Fork follows Child process",
+          "text": "set follow-fork-mode child",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Fork will keep the other process attached to debugger",
+          "text": "set detach-on-fork off",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "C/C++: gcc build active file",
+      "miDebuggerPath": "/usr/bin/gdb"
+    }
+  ],
+  "version": "2.0.0",
+}

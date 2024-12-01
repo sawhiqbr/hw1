@@ -92,10 +92,10 @@ int main(int argc, char *argv[])
   }
 
   printf("Server listening...\n");
-
   while (1)
   {
     int client_fd = accept(listen_fd, NULL, NULL);
+    printf("Accepted client connection %d\n", client_fd);
     if (client_fd == -1)
     {
       perror("accept");

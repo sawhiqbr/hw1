@@ -6,6 +6,9 @@
   ],
   "files.associations": {
     "*.txt": "plaintext",
-    "data_structures.h": "c"
+    "data_structures.h": "c",
+    "commands.h": "c",
+    "shared_memory.h": "c",
+    "agent.h": "c"
   }
 }

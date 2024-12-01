@@ -137,6 +137,7 @@ void run_tests(int sockfd)
   sleep(1);
 
   // Test commands
+
   printf("Testing 'move 10 20'\n");
   send_command(sockfd, "move 10 20\n");
   sleep(1);

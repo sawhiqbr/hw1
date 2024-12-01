@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "shared_memory.h"
 #include "data_structures.h"
 #include <stdlib.h>
@@ -204,72 +205,138 @@ int move(int agent_id, int x, int y)
 
 int *list_agent_demands(int agent_id)
 {
-  int *return_list = malloc(sizeof(int));
   pthread_mutex_lock(&shared_data->mutex);
+
   if (agent_id >= MAX_AGENTS)
   {
     pthread_mutex_unlock(&shared_data->mutex);
     printf("Debug: there is no such agent: %d\n", agent_id);
     return NULL;
   }
+
+  // Count matching demands first
+  int count = 0;
+  for (int i = 0; i < shared_data->demand_count; i++)
+  {
+    if (shared_data->demands[i].agent_id == agent_id)
+    {
+      count++;
+    }
+  }
+
+  // Handle empty case
+  if (count == 0)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Allocate space for demands plus sentinel value
+  int *return_list = malloc(sizeof(int) * (count + 1));
+  if (return_list == NULL)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Copy matching demand indices
   int index = 0;
   for (int i = 0; i < shared_data->demand_count; i++)
   {
     if (shared_data->demands[i].agent_id == agent_id)
     {
-      return_list[index] = i;
-      int *temp = realloc(return_list, sizeof(int) * (index + 1));
-      if (temp == NULL)
-      {
-        printf("Fail: when reallocing\n");
-      }
-      else
-      {
-        return_list = temp;
-      }
+      return_list[index++] = i;
     }
   }
+
+  // Add sentinel value
+  return_list[count] = -1;
+
+  pthread_mutex_unlock(&shared_data->mutex);
   return return_list;
 }
 
 int *list_agent_supplies(int agent_id)
 {
-  int *return_list = malloc(sizeof(int));
   pthread_mutex_lock(&shared_data->mutex);
+
   if (agent_id >= MAX_AGENTS)
   {
     pthread_mutex_unlock(&shared_data->mutex);
     printf("Debug: there is no such agent: %d\n", agent_id);
     return NULL;
   }
+
+  // Count matching supplies first
+  int count = 0;
+  for (int i = 0; i < shared_data->supply_count; i++)
+  {
+    if (shared_data->supplies[i].agent_id == agent_id)
+    {
+      count++;
+    }
+  }
+
+  // Handle empty case
+  if (count == 0)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Allocate space for supplies plus sentinel value
+  int *return_list = malloc(sizeof(int) * (count + 1));
+  if (return_list == NULL)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Copy matching supply indices
   int index = 0;
   for (int i = 0; i < shared_data->supply_count; i++)
   {
     if (shared_data->supplies[i].agent_id == agent_id)
     {
-      return_list[index] = i;
-      int *temp = realloc(return_list, sizeof(int) * (index + 1));
-      if (temp == NULL)
-      {
-        printf("Fail: when reallocing\n");
-      }
-      else
-      {
-        return_list = temp;
-      }
+      return_list[index++] = i;
     }
   }
+
+  // Add sentinel value
+  return_list[count] = -1;
+
+  pthread_mutex_unlock(&shared_data->mutex);
   return return_list;
 }
 
 int *list_all_demands()
 {
   pthread_mutex_lock(&shared_data->mutex);
-  int *return_list = malloc(sizeof(int) * shared_data->demand_count);
+
+  // Handle empty case
+  if (shared_data->demand_count == 0)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Allocate space for demands plus sentinel value
+  int *return_list = malloc(sizeof(int) * (shared_data->demand_count + 1));
+  if (return_list == NULL)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Copy all demand indices
   for (int i = 0; i < shared_data->demand_count; i++)
   {
     return_list[i] = i;
   }
+
+  // Add sentinel value
+  return_list[shared_data->demand_count] = -1;
+
   pthread_mutex_unlock(&shared_data->mutex);
   return return_list;
 }
@@ -277,11 +344,31 @@ int *list_all_demands()
 int *list_all_supplies()
 {
   pthread_mutex_lock(&shared_data->mutex);
-  int *return_list = malloc(sizeof(int) * shared_data->supply_count);
+
+  // Handle empty case
+  if (shared_data->supply_count == 0)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Allocate space for supplies plus sentinel value
+  int *return_list = malloc(sizeof(int) * (shared_data->supply_count + 1));
+  if (return_list == NULL)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Copy all supply indices
   for (int i = 0; i < shared_data->supply_count; i++)
   {
     return_list[i] = i;
   }
+
+  // Add sentinel value
+  return_list[shared_data->supply_count] = -1;
+
   pthread_mutex_unlock(&shared_data->mutex);
   return return_list;
 }
@@ -301,15 +388,10 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
         shared_data->supplies[i].nC -= shared_data->demands[demand_or_supply_id].nC;
         if (shared_data->supplies[i].nA == 0 && shared_data->supplies[i].nB == 0 && shared_data->supplies[i].nC == 0)
         {
-          // TODO: need a solution to double lock problem as we already have the lock
           remove_supply_nolock(shared_data->supplies[i].agent_id, i);
         }
-        // TODO: need a solution to double lock problem as we already have the lock
         remove_demand_nolock(agent_id, demand_or_supply_id);
 
-        // TODO: somehow notify both agents
-        // notify_agent(agent_id);
-        // notify_agent(shared_data->supplies[i].agent_id);
         i_index = i;
         had_a_match = 1;
         break;
@@ -327,15 +409,9 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
         shared_data->supplies[demand_or_supply_id].nC -= shared_data->demands[i].nC;
         if (shared_data->supplies[demand_or_supply_id].nA == 0 && shared_data->supplies[demand_or_supply_id].nB == 0 && shared_data->supplies[demand_or_supply_id].nC == 0)
         {
-          // TODO: need a solution to double lock problem as we already have the lock
           remove_supply_nolock(shared_data->supplies[demand_or_supply_id].agent_id, demand_or_supply_id);
         }
-        // TODO: need a solution to double lock problem as we already have the lock
         remove_demand_nolock(agent_id, i);
-
-        // TODO: somehow notify both agents
-        // notify_agent(agent_id);
-        // notify_agent(shared_data->supplies[i].agent_id);
         i_index = i;
         had_a_match = 1;
         break;
@@ -435,7 +511,7 @@ void get_supply_t_list(int *supply_ids, int index, supply_t *supply)
   pthread_mutex_unlock(&shared_data->mutex);
 }
 
-void notify_agent(int agent_id, int client_fd)
+void notify_client(int agent_id, int client_fd)
 {
   pthread_mutex_lock(&shared_data->agent_mutexes[agent_id]);
   pthread_cond_wait(&shared_data->agent_conds[agent_id], &shared_data->agent_mutexes[agent_id]);
