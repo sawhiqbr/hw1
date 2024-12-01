@@ -6,6 +6,7 @@
 #include "agent.h"
 #include "shared_memory.h"
 #include "data_structures.h"
+#include <ctype.h>
 
 typedef struct
 {
@@ -242,7 +243,7 @@ void handle_command(agent_args_t *args, char *command_str)
         char line[128];
         // snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
         //          demand.x, demand.y, demand.nA, demand.nB, demand.nC);
-        snprintf(line, sizeof(line), "%d %d %d %d %d\n",
+        snprintf(line, sizeof(line), "%d %d %d %d %d %d\n",
                  demand_ids[i], demand->x, demand->y,
                  demand->nA, demand->nB, demand->nC);
         strcat(response, line);
@@ -268,7 +269,7 @@ void handle_command(agent_args_t *args, char *command_str)
         supply_t *supply;
         get_supply_t_list(supply_ids, i, supply);
         char line[128];
-        snprintf(line, sizeof(line), "%d %d %d %d %d\n",
+        snprintf(line, sizeof(line), "%d %d %d %d %d %d\n",
                  supply_ids[i], supply->x, supply->y,
                  supply->nA, supply->nB, supply->nC);
         strcat(response, line);
@@ -294,7 +295,7 @@ void handle_command(agent_args_t *args, char *command_str)
         demand_t *demand;
         get_demand_t_list(demand_ids, i, demand);
         char line[128];
-        snprintf(line, sizeof(line), "%d %d %d %d %d\n",
+        snprintf(line, sizeof(line), "%d %d %d %d %d %d\n",
                  demand_ids[i], demand->x, demand->y,
                  demand->nA, demand->nB, demand->nC);
         strcat(response, line);
@@ -320,7 +321,7 @@ void handle_command(agent_args_t *args, char *command_str)
         supply_t *supply;
         get_supply_t_list(supply_ids, i, supply);
         char line[128];
-        snprintf(line, sizeof(line), "%d %d %d %d %d\n",
+        snprintf(line, sizeof(line), "%d %d %d %d %d %d\n",
                  supply_ids[i], supply->x, supply->y,
                  supply->nA, supply->nB, supply->nC);
         strcat(response, line);
@@ -361,14 +362,4 @@ char *trim_whitespace(char *str)
   *(end + 1) = '\0';
 
   return str;
-}
-
-void cleanup_agent(int agent_id)
-{
-  // Remove all demands
-  remove_all_demands(agent_id);
-  // Remove all supplies
-  remove_all_supplies(agent_id);
-  // Remove watch
-  remove_watch(agent_id);
 }

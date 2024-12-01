@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
   char *conn = argv[1];
   int map_width = atoi(argv[2]);
   int map_height = atoi(argv[3]);
+  printf("map width: %d, map_height: %d\n", map_width, map_height);
 
   // Initialize shared memory
   init_shared_memory();

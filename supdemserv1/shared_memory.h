@@ -1,3 +1,5 @@
+#include "data_structures.h"
+
 #ifndef SHARED_MEMORY_H
 #define SHARED_MEMORY_H
 
@@ -31,4 +33,15 @@ void get_agent_position(int agent_id, int *x, int *y);
 void get_demand_t_list(int *demand_ids, int index, demand_t *demand);
 
 void get_supply_t_list(int *supply_ids, int index, supply_t *supply);
+
+void get_next_agent_id(int *agent_id);
+
+void notify_agent(int agent_id, int client_fd);
+
+int remove_demand_nolock(int agent_id, int demand_id);
+
+int remove_supply_nolock(int agent_id, int demand_id);
+
+int check_case(int demand_id, int supply_id);
+
 #endif // SHARED_MEMORY_H

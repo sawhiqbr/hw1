@@ -38,7 +38,6 @@ void init_shared_memory()
   memset(shared_data->watches, 0, sizeof(shared_data->watches));
   memset(shared_data->agent_mutexes, 0, sizeof(shared_data->agent_mutexes));
   memset(shared_data->agent_conds, 0, sizeof(shared_data->agent_conds));
-  memset(shared_data->next_agent_id, 0, sizeof(shared_data->next_agent_id));
   shared_data->demand_count = 0;
   shared_data->supply_count = 0;
   shared_data->watch_count = 0;
@@ -219,16 +218,15 @@ int *list_agent_demands(int agent_id)
     if (shared_data->demands[i].agent_id == agent_id)
     {
       return_list[index] = i;
-      realloc(return_list, sizeof(int) * (index + 1));
-      // int *temp = realloc(return_list, sizeof(int) * (index + 1));
-      // if (temp == NULL)
-      // {
-      //   // Handle allocation failure
-      // }
-      // else
-      // {
-      //   return_list = temp;
-      // }
+      int *temp = realloc(return_list, sizeof(int) * (index + 1));
+      if (temp == NULL)
+      {
+        printf("Fail: when reallocing\n");
+      }
+      else
+      {
+        return_list = temp;
+      }
     }
   }
   return return_list;
@@ -250,7 +248,15 @@ int *list_agent_supplies(int agent_id)
     if (shared_data->supplies[i].agent_id == agent_id)
     {
       return_list[index] = i;
-      realloc(return_list, sizeof(int) * (index + 1));
+      int *temp = realloc(return_list, sizeof(int) * (index + 1));
+      if (temp == NULL)
+      {
+        printf("Fail: when reallocing\n");
+      }
+      else
+      {
+        return_list = temp;
+      }
     }
   }
   return return_list;
