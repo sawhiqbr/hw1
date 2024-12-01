@@ -1,3 +1,7 @@
 {
-  "C_Cpp.default.compilerPath": "/usr/bin/gcc-12"
+  "C_Cpp.default.compilerPath": "/usr/bin/gcc-12",
+  "devdocs-adapter.docsets": [
+    "c",
+    "cpp"
+  ]
 }

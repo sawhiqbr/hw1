@@ -25,7 +25,6 @@ void init_shared_memory()
     perror("initialize shared memory problem");
     exit(EXIT_FAILURE);
   }
-
   // Initialize shared data and synchronization primitives
   // This code should run only once in the master process before forking
   pthread_mutexattr_t mutexAttr;
@@ -37,9 +36,28 @@ void init_shared_memory()
   memset(shared_data->demands, 0, sizeof(shared_data->demands));
   memset(shared_data->supplies, 0, sizeof(shared_data->supplies));
   memset(shared_data->watches, 0, sizeof(shared_data->watches));
+  memset(shared_data->agent_mutexes, 0, sizeof(shared_data->agent_mutexes));
+  memset(shared_data->agent_conds, 0, sizeof(shared_data->agent_conds));
+  memset(shared_data->next_agent_id, 0, sizeof(shared_data->next_agent_id));
   shared_data->demand_count = 0;
   shared_data->supply_count = 0;
   shared_data->watch_count = 0;
+  shared_data->next_agent_id = 0;
+
+  for (int i = 0; i < MAX_AGENTS; i++)
+  {
+    pthread_mutexattr_t mutexAttr;
+    pthread_mutexattr_init(&mutexAttr);
+    pthread_mutexattr_setpshared(&mutexAttr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&shared_data->agent_mutexes[i], &mutexAttr);
+    pthread_mutexattr_destroy(&mutexAttr);
+
+    pthread_condattr_t condAttr;
+    pthread_condattr_init(&condAttr);
+    pthread_condattr_setpshared(&condAttr, PTHREAD_PROCESS_SHARED);
+    pthread_cond_init(&shared_data->agent_conds[i], &condAttr);
+    pthread_condattr_destroy(&condAttr);
+  }
 }
 
 void destroy_shared_memory()
@@ -99,6 +117,24 @@ int add_supply(int agent_id, int x, int y, int distance, int nA, int nB, int nC)
   supply->nC = nC;
   check_match(agent_id, shared_data->supply_count, 0);
   pthread_mutex_unlock(&shared_data->mutex);
+
+  for (int i = 0; i < MAX_AGENTS; i++)
+  {
+    watch_t *watch = &shared_data->watches[i];
+    if (watch->distance > 0)
+    { // Check if the agent is watching
+      int dx = watch->x - x;
+      int dy = watch->y - y;
+      int distance_squared = dx * dx + dy * dy;
+      if (distance_squared <= watch->distance * watch->distance)
+      {
+        // Notify the agent
+        pthread_mutex_lock(&shared_data->agent_mutexes[i]);
+        pthread_cond_signal(&shared_data->agent_conds[i]);
+        pthread_mutex_unlock(&shared_data->agent_mutexes[i]);
+      }
+    }
+  }
   return 0;
 }
 
@@ -161,6 +197,8 @@ int move(int agent_id, int x, int y)
   }
   shared_data->watches[agent_id].x = x;
   shared_data->watches[agent_id].y = y;
+  shared_data->agent_positions[agent_id][0] = x;
+  shared_data->agent_positions[agent_id][1] = y;
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
@@ -182,6 +220,15 @@ int *list_agent_demands(int agent_id)
     {
       return_list[index] = i;
       realloc(return_list, sizeof(int) * (index + 1));
+      // int *temp = realloc(return_list, sizeof(int) * (index + 1));
+      // if (temp == NULL)
+      // {
+      //   // Handle allocation failure
+      // }
+      // else
+      // {
+      //   return_list = temp;
+      // }
     }
   }
   return return_list;
@@ -236,6 +283,7 @@ int *list_all_supplies()
 int check_match(int agent_id, int demand_or_supply_id, int is_demand)
 {
   int had_a_match = 0;
+  int i_index = 0;
   if (is_demand)
   {
     for (int i = 0; i < shared_data->supply_count; i++)
@@ -256,6 +304,7 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
         // TODO: somehow notify both agents
         // notify_agent(agent_id);
         // notify_agent(shared_data->supplies[i].agent_id);
+        i_index = i;
         had_a_match = 1;
         break;
       }
@@ -281,10 +330,29 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
         // TODO: somehow notify both agents
         // notify_agent(agent_id);
         // notify_agent(shared_data->supplies[i].agent_id);
+        i_index = i;
         had_a_match = 1;
         break;
       }
     }
+  }
+
+  if (had_a_match)
+  {
+    int supplier_agent_id = shared_data->supplies[i_index].agent_id;
+    int demander_agent_id = shared_data->demands[demand_or_supply_id].agent_id;
+
+    // Notify the supplier
+    pthread_mutex_lock(&shared_data->agent_mutexes[supplier_agent_id]);
+    // Add notification details to a per-agent queue or data structure
+    pthread_cond_signal(&shared_data->agent_conds[supplier_agent_id]);
+    pthread_mutex_unlock(&shared_data->agent_mutexes[supplier_agent_id]);
+
+    // Notify the demander
+    pthread_mutex_lock(&shared_data->agent_mutexes[demander_agent_id]);
+    // Add notification details to a per-agent queue or data structure
+    pthread_cond_signal(&shared_data->agent_conds[demander_agent_id]);
+    pthread_mutex_unlock(&shared_data->agent_mutexes[demander_agent_id]);
   }
   return had_a_match;
 }
@@ -342,15 +410,41 @@ void get_agent_position(int agent_id, int *x, int *y)
   pthread_mutex_lock(&shared_data->mutex);
   *x = shared_data->watches[agent_id].x;
   *y = shared_data->watches[agent_id].y;
+  *x = shared_data->agent_positions[agent_id][0];
+  *y = shared_data->agent_positions[agent_id][1];
   pthread_mutex_unlock(&shared_data->mutex);
 }
 
 void get_demand_t_list(int *demand_ids, int index, demand_t *demand)
 {
+  pthread_mutex_lock(&shared_data->mutex);
   demand = &shared_data->demands[demand_ids[index]];
+  pthread_mutex_unlock(&shared_data->mutex);
 }
 
 void get_supply_t_list(int *supply_ids, int index, supply_t *supply)
 {
+  pthread_mutex_lock(&shared_data->mutex);
   supply = &shared_data->supplies[supply_ids[index]];
+  pthread_mutex_unlock(&shared_data->mutex);
+}
+
+void notify_agent(int agent_id, int client_fd)
+{
+  pthread_mutex_lock(&shared_data->agent_mutexes[agent_id]);
+  pthread_cond_wait(&shared_data->agent_conds[agent_id], &shared_data->agent_mutexes[agent_id]);
+
+  // Retrieve notification details from the per-agent queue or data structure
+
+  pthread_mutex_unlock(&shared_data->agent_mutexes[agent_id]);
+
+  // Send notification to client based on the event type
+  write(client_fd, "Your demand was fulfilled...\n", 27);
+}
+
+void get_next_agent_id(int *agent_id)
+{
+  pthread_mutex_lock(&shared_data->mutex);
+  *agent_id = shared_data->next_agent_id++;
+  pthread_mutex_unlock(&shared_data->mutex);
 }

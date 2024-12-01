@@ -24,7 +24,8 @@ void agent_process(int client_fd)
   pthread_t cmd_thread, notif_thread;
   agent_args_t *args = malloc(sizeof(agent_args_t));
   args->client_fd = client_fd;
-  args->agent_id = getpid(); // Use PID as agent ID for simplicity
+
+  get_next_agent_id(&args->agent_id);
 
   // Register agent in shared memory if needed
 
@@ -100,15 +101,14 @@ void *notification_thread(void *arg)
 {
   agent_args_t *args = (agent_args_t *)arg;
   int client_fd = args->client_fd;
+  int agent_id = args->agent_id;
 
   // TODO: Implement notification handling
   // Wait for notifications from shared memory and send to client
 
   while (1)
   {
-    // Example placeholder for notification mechanism
-    // You should replace this with actual synchronization and notification logic
-    sleep(1); // Placeholder
+    notify_agent(agent_id, client_fd);
   }
 
   return NULL;
@@ -208,7 +208,7 @@ void handle_command(agent_args_t *args, char *command_str)
       write(client_fd, "Error: Invalid watch command\n", 30);
     }
   }
-  else if (strncmp(command, "unwatch ", 8) == 0)
+  else if (strcmp(command, "unwatch") == 0)
   {
     if (remove_watch(agent_id) == 0)
     {
@@ -219,7 +219,7 @@ void handle_command(agent_args_t *args, char *command_str)
       write(client_fd, "Error: Remove watch failed\n", 25);
     }
   }
-  else if (strncmp(command, "mydemands ", 10) == 0)
+  else if (strcmp(command, "mydemands") == 0)
   {
     int *demand_ids = list_agent_demands(agent_id);
     if (demand_ids == NULL)
@@ -231,11 +231,17 @@ void handle_command(agent_args_t *args, char *command_str)
       // Send demands to client
       char response[1024];
       response[0] = '\0';
+      // int total_demands = ...; // Get the total number of demands
+      // snprintf(response, sizeof(response), "There are %d demands in total.\n", total_demands);
+      // strcat(response, "X       |Y       |A    |B    |C    |\n");
+      // strcat(response, "-------+-------+-----+-----+-----+\n");
       for (int i = 0; demand_ids[i] != -1; i++)
       {
         demand_t *demand;
         get_demand_t_list(demand_ids, i, demand);
         char line[128];
+        // snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
+        //          demand.x, demand.y, demand.nA, demand.nB, demand.nC);
         snprintf(line, sizeof(line), "%d %d %d %d %d\n",
                  demand_ids[i], demand->x, demand->y,
                  demand->nA, demand->nB, demand->nC);
@@ -245,7 +251,7 @@ void handle_command(agent_args_t *args, char *command_str)
       free(demand_ids);
     }
   }
-  else if (strncmp(command, "mysupplies ", 11) == 0)
+  else if (strcmp(command, "mysupplies") == 0)
   {
     int *supply_ids = list_agent_supplies(agent_id);
     if (supply_ids == NULL)
@@ -271,7 +277,7 @@ void handle_command(agent_args_t *args, char *command_str)
       free(supply_ids);
     }
   }
-  else if (strncmp(command, "listdemands ", 12) == 0)
+  else if (strcmp(command, "listdemands") == 0)
   {
     int *demand_ids = list_all_demands(agent_id);
     if (demand_ids == NULL)
@@ -297,7 +303,7 @@ void handle_command(agent_args_t *args, char *command_str)
       free(demand_ids);
     }
   }
-  else if (strncmp(command, "listsupplies ", 13) == 0)
+  else if (strcmp(command, "listsupplies") == 0)
   {
     int *supply_ids = list_all_supplies(agent_id);
     if (supply_ids == NULL)
@@ -355,4 +361,14 @@ char *trim_whitespace(char *str)
   *(end + 1) = '\0';
 
   return str;
+}
+
+void cleanup_agent(int agent_id)
+{
+  // Remove all demands
+  remove_all_demands(agent_id);
+  // Remove all supplies
+  remove_all_supplies(agent_id);
+  // Remove watch
+  remove_watch(agent_id);
 }

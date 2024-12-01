@@ -50,6 +50,11 @@ typedef struct
   int demand_count;
   int supply_count;
   int watch_count;
+  pthread_mutex_t agent_mutexes[MAX_AGENTS];
+  pthread_cond_t agent_conds[MAX_AGENTS];
+  int next_agent_id;
+  int agent_positions[MAX_AGENTS][2]; // [x, y] positions
+
 } shared_data_t;
 
 #endif // DATA_STRUCTURES_H
