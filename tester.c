@@ -102,7 +102,8 @@ void *receiver_thread(void *arg)
     if (n > 0)
     {
       buffer[n] = '\0';
-      printf("Received: %s", buffer);
+      printf("%s", buffer);
+      fflush(stdout);
     }
     else if (n == 0)
     {
@@ -124,7 +125,7 @@ void *receiver_thread(void *arg)
   return NULL;
 }
 
-void run_tests(int sockfd)
+void run_interactive_mode(int sockfd)
 {
   pthread_t recv_thread;
   if (pthread_create(&recv_thread, NULL, receiver_thread, &sockfd) != 0)
@@ -136,41 +137,47 @@ void run_tests(int sockfd)
   // Allow receiver thread to start
   sleep(1);
 
-  // Test commands
+  char input[BUFFER_SIZE];
+  while (running)
+  {
+    printf("> ");
+    fflush(stdout);
 
-  printf("Testing 'move 10 20'\n");
-  send_command(sockfd, "move 10 20\n");
-  sleep(1);
+    if (fgets(input, sizeof(input), stdin) == NULL)
+    {
+      // EOF or error
+      break;
+    }
 
-  printf("Testing 'demand 5 3 2'\n");
-  send_command(sockfd, "demand 5 3 2\n");
-  sleep(1);
+    // Remove trailing newline if present
+    size_t len = strlen(input);
+    if (len > 0 && input[len - 1] == '\n')
+    {
+      input[len - 1] = '\0';
+    }
 
-  printf("Testing 'supply 15 10 8 6'\n");
-  send_command(sockfd, "supply 15 10 8 6\n");
-  sleep(1);
+    // Send the command to the server
+    if (send_command(sockfd, input) == -1)
+    {
+      printf("Failed to send command.\n");
+      break;
+    }
+    // Send newline character to denote end of command
+    if (send_command(sockfd, "\n") == -1)
+    {
+      printf("Failed to send newline.\n");
+      break;
+    }
 
-  printf("Testing 'watch 10'\n");
-  send_command(sockfd, "watch 10\n");
-  sleep(1);
-
-  printf("Testing 'listdemands'\n");
-  send_command(sockfd, "listdemands\n");
-  sleep(1);
-
-  printf("Testing 'listsupplies'\n");
-  send_command(sockfd, "listsupplies\n");
-  sleep(1);
-
-  printf("Testing 'unwatch'\n");
-  send_command(sockfd, "unwatch\n");
-  sleep(1);
-
-  printf("Testing 'quit'\n");
-  send_command(sockfd, "quit\n");
+    // If the command is 'quit', we can exit
+    if (strcmp(input, "quit") == 0)
+    {
+      running = 0;
+      break;
+    }
+  }
 
   // Wait for the receiver thread to finish
-  running = 0;
   pthread_join(recv_thread, NULL);
 }
 
@@ -211,7 +218,7 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
 
-  run_tests(sockfd);
+  run_interactive_mode(sockfd);
 
   // Close the connection
   close(sockfd);
