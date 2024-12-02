@@ -310,11 +310,11 @@ void handle_command(agent_args_t *args, char *command_str)
       strcat(response, "-------+-------+-----+-----+-----+\n");
       for (int i = 0; demand_ids[i] != -1; i++)
       {
-        demand_t *demand;
-        get_demand_t_list(demand_ids, i, demand);
+        demand_t demand;
+        get_demand_t_list(demand_ids, i, &demand);
         char line[128];
         snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
-                 demand->x, demand->y, demand->nA, demand->nB, demand->nC);
+                 demand.x, demand.y, demand.nA, demand.nB, demand.nC);
         strcat(response, line);
       }
       write(client_fd, response, strlen(response));

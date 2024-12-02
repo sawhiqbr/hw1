@@ -34,6 +34,18 @@ void init_shared_memory()
   pthread_mutex_init(&shared_data->mutex, &mutexAttr);
 
   // Initialize other fields
+  for (int i = 0; i < MAX_DEMANDS; i++)
+  {
+    shared_data->demands[i].agent_id = -1;
+  }
+  for (int i = 0; i < MAX_SUPPLIES; i++)
+  {
+    shared_data->supplies[i].agent_id = -1;
+  }
+  for (int i = 0; i < MAX_AGENTS; i++)
+  {
+    shared_data->watches[i].agent_id = -1;
+  }
   memset(shared_data->demands, 0, sizeof(shared_data->demands));
   memset(shared_data->supplies, 0, sizeof(shared_data->supplies));
   memset(shared_data->watches, 0, sizeof(shared_data->watches));
@@ -177,7 +189,7 @@ int remove_watch(int agent_id)
     printf("Debug: there are no watches: %d\n", debug_watch_count);
     return -1;
   }
-  shared_data->watches[agent_id].agent_id = 0;
+  shared_data->watches[agent_id].agent_id = -1;
   shared_data->watches[agent_id].x = 0;
   shared_data->watches[agent_id].y = 0;
   shared_data->watches[agent_id].distance = 0;
@@ -458,7 +470,7 @@ int remove_demand_nolock(int agent_id, int demand_id)
     return -1;
   }
   // Remove demand logic
-  shared_data->demands[demand_id].agent_id = 0;
+  shared_data->demands[demand_id].agent_id = -1;
   shared_data->demands[demand_id].x = 0;
   shared_data->demands[demand_id].y = 0;
   shared_data->demands[demand_id].nA = 0;
@@ -476,7 +488,7 @@ int remove_supply_nolock(int agent_id, int supply_id)
     printf("Debug: there are no supplies\n");
     return -1;
   }
-  shared_data->supplies[supply_id].agent_id = 0;
+  shared_data->supplies[supply_id].agent_id = -1;
   shared_data->supplies[supply_id].x = 0;
   shared_data->supplies[supply_id].y = 0;
   shared_data->supplies[supply_id].distance = 0;
@@ -500,7 +512,7 @@ void get_agent_position(int agent_id, int *x, int *y)
 void get_demand_t_list(int *demand_ids, int index, demand_t *demand)
 {
   pthread_mutex_lock(&shared_data->mutex);
-  demand = &shared_data->demands[demand_ids[index]];
+  *demand = shared_data->demands[demand_ids[index]];
   pthread_mutex_unlock(&shared_data->mutex);
 }
 
