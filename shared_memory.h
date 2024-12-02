@@ -44,4 +44,9 @@ int remove_supply_nolock(int agent_id, int demand_id);
 
 int check_case(int demand_id, int supply_id);
 
+void remove_all_demands_nolock(int agent_id);
+
+void remove_all_supplies_nolock(int agent_id);
+
+void cleanup_agent(int agent_id);
 #endif // SHARED_MEMORY_H

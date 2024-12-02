@@ -341,9 +341,12 @@ int *list_all_demands()
   }
 
   // Copy all demand indices
-  for (int i = 0; i < shared_data->demand_count; i++)
+  for (int i = 0, index = 0; i < shared_data->demand_count; i++)
   {
-    return_list[i] = i;
+    if (shared_data->demands[i].agent_id != -1)
+    {
+      return_list[index++] = i;
+    }
   }
 
   // Add sentinel value
@@ -373,9 +376,12 @@ int *list_all_supplies()
   }
 
   // Copy all supply indices
-  for (int i = 0; i < shared_data->supply_count; i++)
+  for (int i = 0, index = 0; i < shared_data->supply_count; i++)
   {
-    return_list[i] = i;
+    if (shared_data->supplies[i].agent_id != -1)
+    {
+      return_list[index++] = i;
+    }
   }
 
   // Add sentinel value
@@ -519,7 +525,7 @@ void get_demand_t_list(int *demand_ids, int index, demand_t *demand)
 void get_supply_t_list(int *supply_ids, int index, supply_t *supply)
 {
   pthread_mutex_lock(&shared_data->mutex);
-  supply = &shared_data->supplies[supply_ids[index]];
+  *supply = shared_data->supplies[supply_ids[index]];
   pthread_mutex_unlock(&shared_data->mutex);
 }
 
@@ -540,5 +546,54 @@ void get_next_agent_id(int *agent_id)
 {
   pthread_mutex_lock(&shared_data->mutex);
   *agent_id = shared_data->next_agent_id++;
+  pthread_mutex_unlock(&shared_data->mutex);
+}
+
+void remove_all_demands_nolock(int agent_id)
+{
+  for (int i = 0; i < shared_data->demand_count; i++)
+  {
+    if (shared_data->demands[i].agent_id == agent_id)
+    {
+      shared_data->demand_count--;
+      shared_data->demands[i].agent_id = -1;
+      shared_data->demands[i].x = 0;
+      shared_data->demands[i].y = 0;
+      shared_data->demands[i].nA = 0;
+      shared_data->demands[i].nB = 0;
+      shared_data->demands[i].nC = 0;
+    }
+  }
+}
+
+void remove_all_supplies_nolock(int agent_id)
+{
+  for (int i = 0; i < shared_data->supply_count; i++)
+  {
+    if (shared_data->supplies[i].agent_id == agent_id)
+    {
+      shared_data->supply_count--;
+      shared_data->supplies[i].agent_id = -1;
+      shared_data->supplies[i].x = 0;
+      shared_data->supplies[i].y = 0;
+      shared_data->supplies[i].distance = 0;
+      shared_data->supplies[i].nA = 0;
+      shared_data->supplies[i].nB = 0;
+      shared_data->supplies[i].nC = 0;
+    }
+  }
+}
+
+void cleanup_agent(int agent_id)
+{
+  pthread_mutex_lock(&shared_data->mutex);
+  shared_data->watches[agent_id].agent_id = -1;
+  shared_data->watches[agent_id].x = 0;
+  shared_data->watches[agent_id].y = 0;
+  shared_data->watches[agent_id].distance = 0;
+
+  remove_all_demands_nolock(agent_id);
+  remove_all_supplies_nolock(agent_id);
+
   pthread_mutex_unlock(&shared_data->mutex);
 }
