@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 
 static shared_data_t *shared_data = NULL;
 
@@ -27,7 +28,6 @@ void init_shared_memory()
     exit(EXIT_FAILURE);
   }
   // Initialize shared data and synchronization primitives
-  // This code should run only once in the master process before forking
   pthread_mutexattr_t mutexAttr;
   pthread_mutexattr_init(&mutexAttr);
   pthread_mutexattr_setpshared(&mutexAttr, PTHREAD_PROCESS_SHARED);
@@ -58,17 +58,25 @@ void init_shared_memory()
 
   for (int i = 0; i < MAX_AGENTS; i++)
   {
-    pthread_mutexattr_t mutexAttr;
-    pthread_mutexattr_init(&mutexAttr);
-    pthread_mutexattr_setpshared(&mutexAttr, PTHREAD_PROCESS_SHARED);
-    pthread_mutex_init(&shared_data->agent_mutexes[i], &mutexAttr);
-    pthread_mutexattr_destroy(&mutexAttr);
+    pthread_mutexattr_t agent_mutexAttr;
+    pthread_mutexattr_init(&agent_mutexAttr);
+    pthread_mutexattr_setpshared(&agent_mutexAttr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&shared_data->agent_mutexes[i], &agent_mutexAttr);
+    pthread_mutexattr_destroy(&agent_mutexAttr);
 
     pthread_condattr_t condAttr;
     pthread_condattr_init(&condAttr);
     pthread_condattr_setpshared(&condAttr, PTHREAD_PROCESS_SHARED);
     pthread_cond_init(&shared_data->agent_conds[i], &condAttr);
     pthread_condattr_destroy(&condAttr);
+
+    shared_data->notification_queue[i].head = 0;
+    shared_data->notification_queue[i].tail = 0;
+    pthread_mutexattr_t notification_mutexAttr;
+    pthread_mutexattr_init(&notification_mutexAttr);
+    pthread_mutexattr_setpshared(&notification_mutexAttr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&shared_data->notification_queue[i].mutex, &notification_mutexAttr);
+    pthread_mutexattr_destroy(&notification_mutexAttr);
   }
 }
 
@@ -128,18 +136,30 @@ int add_supply(int agent_id, int x, int y, int distance, int nA, int nB, int nC)
   supply->nB = nB;
   supply->nC = nC;
   check_match(agent_id, shared_data->supply_count, 0);
-  pthread_mutex_unlock(&shared_data->mutex);
 
   for (int i = 0; i < MAX_AGENTS; i++)
   {
     watch_t *watch = &shared_data->watches[i];
-    if (watch->distance > 0)
+    if (watch->distance > 0 && watch->agent_id != -1 && watch->agent_id != agent_id)
     { // Check if the agent is watching
       int dx = watch->x - x;
       int dy = watch->y - y;
       int distance_squared = dx * dx + dy * dy;
       if (distance_squared <= watch->distance * watch->distance)
       {
+        // Prepare notification
+        notification_t notif;
+        notif.type = SUPPLY;
+        notif.related_id = shared_data->supply_count - 1; // Index of the newly added supply
+        notif.timestamp = time(NULL);
+
+        // Add notification to agent's queue
+        pthread_mutex_lock(&shared_data->notification_queue[i].mutex);
+        notification_queue_t *queue = &shared_data->notification_queue[i];
+        queue->notifications[queue->tail] = notif;
+        queue->tail = (queue->tail + 1) % MAX_NOTIFICATIONS;
+        pthread_mutex_unlock(&shared_data->notification_queue[i].mutex);
+
         // Notify the agent
         pthread_mutex_lock(&shared_data->agent_mutexes[i]);
         pthread_cond_signal(&shared_data->agent_conds[i]);
@@ -147,6 +167,7 @@ int add_supply(int agent_id, int x, int y, int distance, int nA, int nB, int nC)
       }
     }
   }
+  pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
 
@@ -439,18 +460,34 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
 
   if (had_a_match)
   {
-    int supplier_agent_id = shared_data->supplies[i_index].agent_id;
-    int demander_agent_id = shared_data->demands[demand_or_supply_id].agent_id;
+    int supplier_agent_id = is_demand ? shared_data->supplies[i_index].agent_id : shared_data->supplies[demand_or_supply_id].agent_id;
+    int demander_agent_id = is_demand ? shared_data->demands[demand_or_supply_id].agent_id : shared_data->demands[i_index].agent_id;
+
+    // Prepare notification
+    notification_t notif;
+    notif.type = WATCH;
+    notif.related_id = is_demand ? demand_or_supply_id : i_index;
+    notif.timestamp = time(NULL);
 
     // Notify the supplier
+    pthread_mutex_lock(&shared_data->notification_queue[supplier_agent_id].mutex);
+    notification_queue_t *supplier_queue = &shared_data->notification_queue[supplier_agent_id];
+    supplier_queue->notifications[supplier_queue->tail] = notif;
+    supplier_queue->tail = (supplier_queue->tail + 1) % MAX_NOTIFICATIONS;
+    pthread_mutex_unlock(&shared_data->notification_queue[supplier_agent_id].mutex);
+
     pthread_mutex_lock(&shared_data->agent_mutexes[supplier_agent_id]);
-    // Add notification details to a per-agent queue or data structure
     pthread_cond_signal(&shared_data->agent_conds[supplier_agent_id]);
     pthread_mutex_unlock(&shared_data->agent_mutexes[supplier_agent_id]);
 
     // Notify the demander
+    pthread_mutex_lock(&shared_data->notification_queue[demander_agent_id].mutex);
+    notification_queue_t *demander_queue = &shared_data->notification_queue[demander_agent_id];
+    demander_queue->notifications[demander_queue->tail] = notif;
+    demander_queue->tail = (demander_queue->tail + 1) % MAX_NOTIFICATIONS;
+    pthread_mutex_unlock(&shared_data->notification_queue[demander_agent_id].mutex);
+
     pthread_mutex_lock(&shared_data->agent_mutexes[demander_agent_id]);
-    // Add notification details to a per-agent queue or data structure
     pthread_cond_signal(&shared_data->agent_conds[demander_agent_id]);
     pthread_mutex_unlock(&shared_data->agent_mutexes[demander_agent_id]);
   }
@@ -531,15 +568,37 @@ void get_supply_t_list(int *supply_ids, int index, supply_t *supply)
 
 void notify_client(int agent_id, int client_fd)
 {
+  // Wait for notification
   pthread_mutex_lock(&shared_data->agent_mutexes[agent_id]);
   pthread_cond_wait(&shared_data->agent_conds[agent_id], &shared_data->agent_mutexes[agent_id]);
-
-  // Retrieve notification details from the per-agent queue or data structure
-
   pthread_mutex_unlock(&shared_data->agent_mutexes[agent_id]);
 
-  // Send notification to client based on the event type
-  write(client_fd, "Your demand was fulfilled...\n", 27);
+  // Retrieve notifications from the agent's queue
+  notification_queue_t *queue = &shared_data->notification_queue[agent_id];
+  pthread_mutex_lock(&queue->mutex);
+
+  while (queue->head != queue->tail)
+  {
+    notification_t notif = queue->notifications[queue->head];
+    queue->head = (queue->head + 1) % MAX_NOTIFICATIONS;
+    pthread_mutex_unlock(&queue->mutex);
+
+    // Process the notification
+    char message[256];
+    if (notif.type == WATCH)
+    {
+      snprintf(message, sizeof(message), "Match found for your demand/supply with ID %d\n", notif.related_id);
+    }
+    else if (notif.type == SUPPLY)
+    {
+      snprintf(message, sizeof(message), "New supply added near your watch area\n");
+    }
+    // Send the message to the client
+    write(client_fd, message, strlen(message));
+
+    pthread_mutex_lock(&queue->mutex);
+  }
+  pthread_mutex_unlock(&queue->mutex);
 }
 
 void get_next_agent_id(int *agent_id)

@@ -2,10 +2,12 @@
 #define DATA_STRUCTURES_H
 
 #include <pthread.h>
+#include <time.h>
 
 #define MAX_DEMANDS 10000
 #define MAX_SUPPLIES 10000
 #define MAX_AGENTS 1000
+#define MAX_NOTIFICATIONS 1000
 
 typedef struct
 {
@@ -15,7 +17,6 @@ typedef struct
   int nA;
   int nB;
   int nC;
-  // Additional fields if needed
 } demand_t;
 
 typedef struct
@@ -27,7 +28,6 @@ typedef struct
   int nB;
   int nC;
   int distance;
-  // Additional fields if needed
 } supply_t;
 
 typedef struct
@@ -36,25 +36,45 @@ typedef struct
   int x;
   int y;
   int distance;
-  // Additional fields if needed
 } watch_t;
+
+typedef enum
+{
+  DEMAND,
+  SUPPLY,
+  WATCH
+} notification_type_t;
+
+typedef struct
+{
+  notification_type_t type;
+  int agent_id;
+  int related_id;
+  time_t timestamp;
+} notification_t;
+
+typedef struct
+{
+  notification_t notifications[MAX_NOTIFICATIONS];
+  int head;
+  int tail;
+  pthread_mutex_t mutex;
+} notification_queue_t;
 
 typedef struct
 {
   pthread_mutex_t mutex;
-  // Shared data structures
   demand_t demands[MAX_DEMANDS];
   supply_t supplies[MAX_SUPPLIES];
   watch_t watches[MAX_AGENTS];
-  // Counts
   int demand_count;
   int supply_count;
   int watch_count;
   pthread_mutex_t agent_mutexes[MAX_AGENTS];
   pthread_cond_t agent_conds[MAX_AGENTS];
   int next_agent_id;
-  int agent_positions[MAX_AGENTS][2]; // [x, y] positions
-
+  int agent_positions[MAX_AGENTS][2];
+  notification_queue_t notification_queue[MAX_AGENTS];
 } shared_data_t;
 
 #endif // DATA_STRUCTURES_H
