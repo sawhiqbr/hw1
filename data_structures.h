@@ -40,16 +40,29 @@ typedef struct
 
 typedef enum
 {
-  DEMAND,
-  SUPPLY,
-  WATCH
+  DEMAND_FULFILLED,
+  SUPPLY_DELIVERED,
+  SUPPLY_REMOVED,
+  SUPPLY_ADDED
 } notification_type_t;
 
 typedef struct
 {
   notification_type_t type;
   int agent_id;
-  int related_id;
+  int demand_id;
+  int supply_id;
+  int demandX;
+  int demandY;
+  int demandA;
+  int demandB;
+  int demandC;
+  int supplyX;
+  int supplyY;
+  int supplyA;
+  int supplyB;
+  int supplyC;
+  int supplyDistance;
   time_t timestamp;
 } notification_t;
 

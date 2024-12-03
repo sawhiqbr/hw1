@@ -275,15 +275,15 @@ void handle_command(agent_args_t *args, char *command_str)
         total_supplies++;
       }
       snprintf(response, sizeof(response), "There are %d supplies in total.\n", total_supplies);
-      strcat(response, "X       |Y       |A    |B    |C    |\n");
-      strcat(response, "-------+-------+-----+-----+-----+\n");
+      strcat(response, "X       |Y       |A    |B    |C    |D       |\n");
+      strcat(response, "-------+-------+-----+-----+-----+-------+\n");
       for (int i = 0; supply_ids[i] != -1; i++)
       {
         supply_t supply;
         get_supply_t_list(supply_ids, i, &supply);
         char line[128];
-        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
-                 supply.x, supply.y, supply.nA, supply.nB, supply.nC);
+        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|%7d|\n",
+                 supply.x, supply.y, supply.nA, supply.nB, supply.nC, supply.distance);
         strcat(response, line);
       }
       write(client_fd, response, strlen(response));
