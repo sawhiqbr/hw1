@@ -1,0 +1,10 @@
+move 99 99
+demand 10 10 10
+supply 20 10 10 10
+listdemands
+listsupplies
+move 50 50
+supply 10 5 5 5
+listdemands
+listsupplies
+quit

@@ -89,11 +89,13 @@ void destroy_shared_memory()
   munmap(shared_data, shm_size);
 }
 
-int add_demand(int agent_id, int x, int y, int nA, int nB, int nC)
+int add_demand(int agent_id, int nA, int nB, int nC)
 {
-  printf("DEBUG: Adding demand for agent %d at (%d,%d) with resources [%d,%d,%d]\n",
-         agent_id, x, y, nA, nB, nC);
   pthread_mutex_lock(&shared_data->mutex);
+  int x = shared_data->agent_positions[agent_id][0];
+  int y = shared_data->agent_positions[agent_id][1];
+  printf("DEBUG: Adding demand for agent %d with resources [%d,%d,%d]\n",
+         agent_id, nA, nB, nC);
   if (shared_data->demand_count >= MAX_DEMANDS)
   {
     pthread_mutex_unlock(&shared_data->mutex);
@@ -121,12 +123,14 @@ int remove_demand(int agent_id, int demand_id)
   return result;
 }
 
-int add_supply(int agent_id, int x, int y, int distance, int nA, int nB, int nC)
+int add_supply(int agent_id, int distance, int nA, int nB, int nC)
 {
+  pthread_mutex_lock(&shared_data->mutex);
+  int x = shared_data->agent_positions[agent_id][0];
+  int y = shared_data->agent_positions[agent_id][1];
   printf("DEBUG: Adding supply for agent %d at (%d,%d) with distance %d and resources [%d,%d,%d]\n",
          agent_id, x, y, distance, nA, nB, nC);
-
-  pthread_mutex_lock(&shared_data->mutex);
+  printf("Adding supply while supply count is %d\n", shared_data->supply_count);
   if (shared_data->supply_count >= MAX_SUPPLIES)
   {
     pthread_mutex_unlock(&shared_data->mutex);
@@ -196,9 +200,11 @@ int remove_supply(int agent_id, int supply_id)
   return result;
 }
 
-int add_watch(int agent_id, int x, int y, int distance)
+int add_watch(int agent_id, int distance)
 {
   pthread_mutex_lock(&shared_data->mutex);
+  int x = shared_data->agent_positions[agent_id][0];
+  int y = shared_data->agent_positions[agent_id][1];
   if (shared_data->watch_count >= MAX_AGENTS)
   {
     pthread_mutex_unlock(&shared_data->mutex);
@@ -249,182 +255,6 @@ int move(int agent_id, int x, int y)
   shared_data->agent_positions[agent_id][1] = y;
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
-}
-
-int *list_agent_demands(int agent_id)
-{
-  pthread_mutex_lock(&shared_data->mutex);
-
-  if (agent_id >= MAX_AGENTS)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    printf("Debug: there is no such agent: %d\n", agent_id);
-    return NULL;
-  }
-
-  // Count matching demands first
-  int count = 0;
-  for (int i = 0; i < shared_data->demand_count; i++)
-  {
-    if (shared_data->demands[i].agent_id == agent_id)
-    {
-      count++;
-    }
-  }
-
-  // Handle empty case
-  if (count == 0)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return NULL;
-  }
-
-  // Allocate space for demands plus sentinel value
-  int *return_list = malloc(sizeof(int) * (count + 1));
-  if (return_list == NULL)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return NULL;
-  }
-
-  // Copy matching demand indices
-  int index = 0;
-  for (int i = 0; i < shared_data->demand_count; i++)
-  {
-    if (shared_data->demands[i].agent_id == agent_id)
-    {
-      return_list[index++] = i;
-    }
-  }
-
-  // Add sentinel value
-  return_list[count] = -1;
-
-  pthread_mutex_unlock(&shared_data->mutex);
-  return return_list;
-}
-
-int *list_agent_supplies(int agent_id)
-{
-  pthread_mutex_lock(&shared_data->mutex);
-
-  if (agent_id >= MAX_AGENTS)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    printf("Debug: there is no such agent: %d\n", agent_id);
-    return NULL;
-  }
-
-  // Count matching supplies first
-  int count = 0;
-  for (int i = 0; i < shared_data->supply_count; i++)
-  {
-    if (shared_data->supplies[i].agent_id == agent_id)
-    {
-      count++;
-    }
-  }
-
-  // Handle empty case
-  if (count == 0)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return NULL;
-  }
-
-  // Allocate space for supplies plus sentinel value
-  int *return_list = malloc(sizeof(int) * (count + 1));
-  if (return_list == NULL)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return NULL;
-  }
-
-  // Copy matching supply indices
-  int index = 0;
-  for (int i = 0; i < shared_data->supply_count; i++)
-  {
-    if (shared_data->supplies[i].agent_id == agent_id)
-    {
-      return_list[index++] = i;
-    }
-  }
-
-  // Add sentinel value
-  return_list[count] = -1;
-
-  pthread_mutex_unlock(&shared_data->mutex);
-  return return_list;
-}
-
-int *list_all_demands()
-{
-  pthread_mutex_lock(&shared_data->mutex);
-
-  // Handle empty case
-  if (shared_data->demand_count == 0)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return NULL;
-  }
-
-  // Allocate space for demands plus sentinel value
-  int *return_list = malloc(sizeof(int) * (shared_data->demand_count + 1));
-  if (return_list == NULL)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return NULL;
-  }
-
-  // Copy all demand indices
-  for (int i = 0, index = 0; i < shared_data->demand_count; i++)
-  {
-    if (shared_data->demands[i].agent_id != -1)
-    {
-      return_list[index++] = i;
-    }
-  }
-
-  // Add sentinel value
-  return_list[shared_data->demand_count] = -1;
-
-  pthread_mutex_unlock(&shared_data->mutex);
-  return return_list;
-}
-
-int *list_all_supplies()
-{
-  pthread_mutex_lock(&shared_data->mutex);
-
-  // Handle empty case
-  if (shared_data->supply_count == 0)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return NULL;
-  }
-
-  // Allocate space for supplies plus sentinel value
-  int *return_list = malloc(sizeof(int) * (shared_data->supply_count + 1));
-  if (return_list == NULL)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return NULL;
-  }
-
-  // Copy all supply indices
-  for (int i = 0, index = 0; i < shared_data->supply_count; i++)
-  {
-    if (shared_data->supplies[i].agent_id != -1)
-    {
-      return_list[index++] = i;
-    }
-  }
-
-  // Add sentinel value
-  return_list[shared_data->supply_count] = -1;
-
-  pthread_mutex_unlock(&shared_data->mutex);
-  return return_list;
 }
 
 int check_match(int agent_id, int demand_or_supply_id, int is_demand)
@@ -617,6 +447,7 @@ int check_case(int demand_id, int supply_id)
 
 int remove_demand_nolock(int agent_id, int demand_id)
 {
+  printf("DEBUG: Removing demand %d for agent %d while demand count is %d\n", demand_id, agent_id, shared_data->demand_count);
   // Assume mutex is already locked
   if (shared_data->demand_count <= 0)
   {
@@ -636,6 +467,7 @@ int remove_demand_nolock(int agent_id, int demand_id)
 
 int remove_supply_nolock(int agent_id, int supply_id)
 {
+  printf("DEBUG: Removing supply %d for agent %d while supply count is %d\n", supply_id, agent_id, shared_data->supply_count);
   // Assume mutex is already locked
   if (shared_data->supply_count <= 0)
   {
@@ -672,30 +504,6 @@ int remove_supply_nolock(int agent_id, int supply_id)
   pthread_mutex_unlock(&shared_data->agent_mutexes[supplier_agent_id]);
 
   return 0;
-}
-
-void get_agent_position(int agent_id, int *x, int *y)
-{
-  pthread_mutex_lock(&shared_data->mutex);
-  *x = shared_data->watches[agent_id].x;
-  *y = shared_data->watches[agent_id].y;
-  *x = shared_data->agent_positions[agent_id][0];
-  *y = shared_data->agent_positions[agent_id][1];
-  pthread_mutex_unlock(&shared_data->mutex);
-}
-
-void get_demand_t_list(int *demand_ids, int index, demand_t *demand)
-{
-  pthread_mutex_lock(&shared_data->mutex);
-  *demand = shared_data->demands[demand_ids[index]];
-  pthread_mutex_unlock(&shared_data->mutex);
-}
-
-void get_supply_t_list(int *supply_ids, int index, supply_t *supply)
-{
-  pthread_mutex_lock(&shared_data->mutex);
-  *supply = shared_data->supplies[supply_ids[index]];
-  pthread_mutex_unlock(&shared_data->mutex);
 }
 
 void notify_client(int agent_id, int client_fd)
@@ -808,4 +616,116 @@ void cleanup_agent(int agent_id)
 
   pthread_mutex_unlock(&shared_data->mutex);
   printf("DEBUG: Agent %d cleanup complete\n", agent_id);
+}
+
+char *create_supply_response(int agent_id, int all)
+{
+  // Lock the shared data mutex
+  pthread_mutex_lock(&shared_data->mutex);
+
+  // Count matching supplies first
+  int count = 0;
+  for (int i = 0; i < shared_data->supply_count; i++)
+  {
+    if (shared_data->supplies[i].agent_id == agent_id)
+    {
+      count++;
+    }
+  }
+  if (all)
+    count = shared_data->supply_count;
+  // Handle empty case
+  if (count == 0)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return strdup("Error: No supplies found\n");
+  }
+
+  // Allocate space for the response
+  char *response = malloc(1024 * sizeof(char));
+  if (response == NULL)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Start building the response
+  snprintf(response, 1024, "There are %d supplies in total.\n", count);
+  strcat(response, "X       |Y       |A    |B    |C    |D       |\n");
+  strcat(response, "-------+-------+-----+-----+-----+-------+\n");
+
+  // Add each supply to the response
+  for (int i = 0; i < shared_data->supply_count; i++)
+  {
+    if (shared_data->supplies[i].agent_id == agent_id || (all && shared_data->supplies[i].agent_id != -1))
+    {
+      char line[128];
+      snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|%7d|\n",
+               shared_data->supplies[i].x, shared_data->supplies[i].y,
+               shared_data->supplies[i].nA, shared_data->supplies[i].nB,
+               shared_data->supplies[i].nC, shared_data->supplies[i].distance);
+      strcat(response, line);
+    }
+  }
+
+  // Unlock the shared data mutex
+  pthread_mutex_unlock(&shared_data->mutex);
+
+  return response;
+}
+
+char *create_demand_response(int agent_id, int all)
+{
+  // Lock the shared data mutex
+  pthread_mutex_lock(&shared_data->mutex);
+
+  // Count matching demands first
+  int count = 0;
+  for (int i = 0; i < shared_data->demand_count; i++)
+  {
+    if (shared_data->demands[i].agent_id == agent_id)
+    {
+      count++;
+    }
+  }
+  if (all)
+    count = shared_data->demand_count;
+  // Handle empty case
+  if (count == 0)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return strdup("Error: No demands found\n");
+  }
+
+  // Allocate space for the response
+  char *response = malloc(1024 * sizeof(char));
+  if (response == NULL)
+  {
+    pthread_mutex_unlock(&shared_data->mutex);
+    return NULL;
+  }
+
+  // Start building the response
+  snprintf(response, 1024, "There are %d demands in total.\n", count);
+  strcat(response, "X       |Y       |A    |B    |C    |\n");
+  strcat(response, "-------+-------+-----+-----+-----+\n");
+
+  // Add each demand to the response
+  for (int i = 0; i < shared_data->demand_count; i++)
+  {
+    if (shared_data->demands[i].agent_id == agent_id || (all && shared_data->demands[i].agent_id != -1))
+    {
+      char line[128];
+      snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
+               shared_data->demands[i].x, shared_data->demands[i].y,
+               shared_data->demands[i].nA, shared_data->demands[i].nB,
+               shared_data->demands[i].nC);
+      strcat(response, line);
+    }
+  }
+
+  // Unlock the shared data mutex
+  pthread_mutex_unlock(&shared_data->mutex);
+
+  return response;
 }

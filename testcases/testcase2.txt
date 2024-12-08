@@ -1,0 +1,9 @@
+move 20 20
+demand 2 2 2
+watch 5
+move 25 20
+supply 10 3 3 3
+mydemands
+mysupplies
+unwatch
+quit

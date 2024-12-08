@@ -1,0 +1,8 @@
+move 10 10
+demand 5 0 0
+supply 10 5 0 0
+mydemands
+mysupplies
+listdemands
+listsupplies
+quit

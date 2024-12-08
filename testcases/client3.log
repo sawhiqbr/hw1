@@ -1,0 +1,31 @@
+Client 0: Connecting to Unix domain socket at '/tmp/supdem.sock'
+Client 0: Running script 'testcase3.txt'
+OK move 2
+OK demand 2
+OK supply 2
+Your supply is removed from map.
+Your supply at (99,99), [10,10,10] with distance 20 is delivered to a client at (99,99) [10,10,10].
+Your demand at (99,99), [10,10,10] is fulfilled by a client at (99,99).
+Your supply is removed from map.
+There are 2 demands in total.
+X       |Y       |A    |B    |C    |
+-------+-------+-----+-----+-----+
+     20|     20|    2|    2|    2|
+There are 3 supplies in total.
+X       |Y       |A    |B    |C    |D       |
+-------+-------+-----+-----+-----+-------+
+     10|     10|    5|    0|    0|     10|
+      0|     50|    3|    3|    3|     10|
+     25|     20|    3|    3|    3|     10|
+OK move 2
+OK supply 2
+There are 1 demands in total.
+X       |Y       |A    |B    |C    |
+-------+-------+-----+-----+-----+
+There are 4 supplies in total.
+X       |Y       |A    |B    |C    |D       |
+-------+-------+-----+-----+-----+-------+
+      0|     50|    3|    3|    3|     10|
+     50|     50|    5|    5|    5|     10|
+      0|     50|    5|    0|    0|     10|
+OK

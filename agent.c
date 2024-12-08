@@ -50,9 +50,19 @@ void agent_process(int client_fd)
   }
 
   // Wait for threads to finish
+  printf("DEBUG: Waiting for cmd thread to join %d\n", args->agent_id);
   pthread_join(cmd_thread, NULL);
   pthread_cancel(notif_thread); // Cancel notification thread if command handler exits
-  pthread_join(notif_thread, NULL);
+  printf("DEBUG: Waiting for notification thread to join %d\n", args->agent_id);
+  int notif_thread_join_result = pthread_join(notif_thread, NULL);
+  if (notif_thread_join_result == 0)
+  {
+    printf("DEBUG: Notification thread joined successfully\n");
+  }
+  else
+  {
+    printf("DEBUG: Failed to join notification thread, error code: %d\n", notif_thread_join_result);
+  }
 
   printf("Agent process finished for client %d\n", client_fd);
   cleanup_agent(args->agent_id);
@@ -73,6 +83,7 @@ void *command_handler_thread(void *arg)
     if (bytes_read <= 0)
     {
       // Client closed connection or error
+      printf("Client closed connection\n");
       break;
     }
 
@@ -84,10 +95,10 @@ void *command_handler_thread(void *arg)
     while ((newline_pos = strchr(line_start, '\n')) != NULL)
     {
       *newline_pos = '\0'; // Replace newline with null terminator
-      printf("Command: %s\n", line_start);
+      printf("AGENT: Command: %s\n", line_start);
       // Now line_start points to a complete command string
       handle_command(args, line_start);
-
+      printf("AGENT: Handled command: %s\n", line_start);
       // Move to the next line
       line_start = newline_pos + 1;
     }
@@ -125,7 +136,7 @@ void handle_command(agent_args_t *args, char *command_str)
   int agent_id = args->agent_id;
 
   char *command = trim_whitespace(command_str);
-
+  printf("Received command: %s\n", command);
   if (strncmp(command, "move ", 5) == 0)
   {
     int x, y;
@@ -134,7 +145,9 @@ void handle_command(agent_args_t *args, char *command_str)
       // Call move function
       if (move(agent_id, x, y) == 0)
       {
-        write(client_fd, "OK\n", 3);
+        char response[20];
+        snprintf(response, sizeof(response), "OK move %d\n", agent_id);
+        write(client_fd, response, strlen(response));
       }
       else
       {
@@ -151,13 +164,11 @@ void handle_command(agent_args_t *args, char *command_str)
     int nA, nB, nC;
     if (sscanf(command + 7, "%d %d %d", &nA, &nB, &nC) == 3)
     {
-      // Get agent's current position
-      int x, y;
-      get_agent_position(agent_id, &x, &y);
-      // Call add_demand function
-      if (add_demand(agent_id, x, y, nA, nB, nC) == 0)
+      if (add_demand(agent_id, nA, nB, nC) == 0)
       {
-        write(client_fd, "OK\n", 3);
+        char response[20];
+        snprintf(response, sizeof(response), "OK demand %d\n", agent_id);
+        write(client_fd, response, strlen(response));
       }
       else
       {
@@ -174,13 +185,11 @@ void handle_command(agent_args_t *args, char *command_str)
     int distance, nA, nB, nC;
     if (sscanf(command + 7, "%d %d %d %d", &distance, &nA, &nB, &nC) == 4)
     {
-      // Get agent's current position
-      int x, y;
-      get_agent_position(agent_id, &x, &y);
-      // Call add_demand function
-      if (add_supply(agent_id, x, y, distance, nA, nB, nC) == 0)
+      if (add_supply(agent_id, distance, nA, nB, nC) == 0)
       {
-        write(client_fd, "OK\n", 3);
+        char response[20];
+        snprintf(response, sizeof(response), "OK supply %d\n", agent_id);
+        write(client_fd, response, strlen(response));
       }
       else
       {
@@ -197,11 +206,11 @@ void handle_command(agent_args_t *args, char *command_str)
     int distance;
     if (sscanf(command + 6, "%d", &distance) == 1)
     {
-      int x, y;
-      get_agent_position(agent_id, &x, &y);
-      if (add_watch(agent_id, x, y, distance) == 0)
+      if (add_watch(agent_id, distance) == 0)
       {
-        write(client_fd, "OK\n", 3);
+        char response[20];
+        snprintf(response, sizeof(response), "OK watch %d\n", agent_id);
+        write(client_fd, response, strlen(response));
       }
       else
       {
@@ -217,7 +226,9 @@ void handle_command(agent_args_t *args, char *command_str)
   {
     if (remove_watch(agent_id) == 0)
     {
-      write(client_fd, "OK\n", 3);
+      char response[20];
+      snprintf(response, sizeof(response), "OK unwatch %d\n", agent_id);
+      write(client_fd, response, strlen(response));
     }
     else
     {
@@ -226,134 +237,58 @@ void handle_command(agent_args_t *args, char *command_str)
   }
   else if (strcmp(command, "mydemands") == 0)
   {
-    int *demand_ids = list_agent_demands(agent_id);
-    if (demand_ids == NULL)
+    char *response = create_demand_response(agent_id, 0);
+    if (response == NULL)
     {
       write(client_fd, "Error: No demands found\n", 24);
     }
     else
     {
       // Send demands to client
-      char response[1024];
-      response[0] = '\0';
-      int total_demands = 0;
-      for (int i = 0; demand_ids[i] != -1; i++)
-      {
-        total_demands++;
-      }
-      snprintf(response, sizeof(response), "There are %d demands in total.\n", total_demands);
-      strcat(response, "X       |Y       |A    |B    |C    |\n");
-      strcat(response, "-------+-------+-----+-----+-----+\n");
-      for (int i = 0; demand_ids[i] != -1; i++)
-      {
-        demand_t demand;
-        get_demand_t_list(demand_ids, i, &demand);
-        char line[128];
-        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
-                 demand.x, demand.y, demand.nA, demand.nB, demand.nC);
-        strcat(response, line);
-      }
       write(client_fd, response, strlen(response));
-      free(demand_ids);
+      free(response);
     }
   }
   else if (strcmp(command, "mysupplies") == 0)
   {
-    int *supply_ids = list_agent_supplies(agent_id);
-    if (supply_ids == NULL)
+    char *response = create_supply_response(agent_id, 0);
+    if (response == NULL)
     {
       write(client_fd, "Error: No supplies found\n", 24);
     }
     else
     {
       // Send supplies to client
-      char response[1024];
-      response[0] = '\0';
-      int total_supplies = 0;
-      for (int i = 0; supply_ids[i] != -1; i++)
-      {
-        total_supplies++;
-      }
-      snprintf(response, sizeof(response), "There are %d supplies in total.\n", total_supplies);
-      strcat(response, "X       |Y       |A    |B    |C    |D       |\n");
-      strcat(response, "-------+-------+-----+-----+-----+-------+\n");
-      for (int i = 0; supply_ids[i] != -1; i++)
-      {
-        supply_t supply;
-        get_supply_t_list(supply_ids, i, &supply);
-        char line[128];
-        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|%7d|\n",
-                 supply.x, supply.y, supply.nA, supply.nB, supply.nC, supply.distance);
-        strcat(response, line);
-      }
       write(client_fd, response, strlen(response));
-      free(supply_ids);
+      free(response);
     }
   }
   else if (strcmp(command, "listdemands") == 0)
   {
-    int *demand_ids = list_all_demands(agent_id);
-    if (demand_ids == NULL)
+    char *response = create_demand_response(agent_id, 1);
+    if (response == NULL)
     {
       write(client_fd, "Error: No demands found\n", 24);
     }
     else
     {
       // Send demands to client
-      char response[1024];
-      response[0] = '\0';
-      int total_demands = 0;
-      for (int i = 0; demand_ids[i] != -1; i++)
-      {
-        total_demands++;
-      }
-      snprintf(response, sizeof(response), "There are %d demands in total.\n", total_demands);
-      strcat(response, "X       |Y       |A    |B    |C    |\n");
-      strcat(response, "-------+-------+-----+-----+-----+\n");
-      for (int i = 0; demand_ids[i] != -1; i++)
-      {
-        demand_t demand;
-        get_demand_t_list(demand_ids, i, &demand);
-        char line[128];
-        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
-                 demand.x, demand.y, demand.nA, demand.nB, demand.nC);
-        strcat(response, line);
-      }
       write(client_fd, response, strlen(response));
-      free(demand_ids);
+      free(response);
     }
   }
   else if (strcmp(command, "listsupplies") == 0)
   {
-    int *supply_ids = list_all_supplies(agent_id);
-    if (supply_ids == NULL)
+    char *response = create_supply_response(agent_id, 1);
+    if (response == NULL)
     {
       write(client_fd, "Error: No supplies found\n", 24);
     }
     else
     {
       // Send supplies to client
-      char response[1024];
-      response[0] = '\0';
-      int total_supplies = 0;
-      for (int i = 0; supply_ids[i] != -1; i++)
-      {
-        total_supplies++;
-      }
-      snprintf(response, sizeof(response), "There are %d supplies in total.\n", total_supplies);
-      strcat(response, "X       |Y       |A    |B    |C    |\n");
-      strcat(response, "-------+-------+-----+-----+-----+\n");
-      for (int i = 0; supply_ids[i] != -1; i++)
-      {
-        supply_t supply;
-        get_supply_t_list(supply_ids, i, &supply);
-        char line[128];
-        snprintf(line, sizeof(line), "%7d|%7d|%5d|%5d|%5d|\n",
-                 supply.x, supply.y, supply.nA, supply.nB, supply.nC);
-        strcat(response, line);
-      }
       write(client_fd, response, strlen(response));
-      free(supply_ids);
+      free(response);
     }
   }
 

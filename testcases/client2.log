@@ -1,0 +1,16 @@
+Client 0: Connecting to Unix domain socket at '/tmp/supdem.sock'
+Client 0: Running script 'testcase2.txt'
+OK move 1
+OK demand 1
+OK watch 1
+OK move 1
+OK supply 1
+Your supply at (25,20), [3,3,3] with distance 10 is delivered to a client at (20,20) [2,2,2].
+Your demand at (20,20), [2,2,2] is fulfilled by a client at (25,20).
+Error: No demands found
+There are 1 supplies in total.
+X       |Y       |A    |B    |C    |D       |
+-------+-------+-----+-----+-----+-------+
+     25|     20|    3|    3|    3|     10|
+OK unwatch 1
+OK
