@@ -50,19 +50,9 @@ void agent_process(int client_fd)
   }
 
   // Wait for threads to finish
-  printf("DEBUG: Waiting for cmd thread to join %d\n", args->agent_id);
   pthread_join(cmd_thread, NULL);
   pthread_cancel(notif_thread); // Cancel notification thread if command handler exits
-  printf("DEBUG: Waiting for notification thread to join %d\n", args->agent_id);
-  int notif_thread_join_result = pthread_join(notif_thread, NULL);
-  if (notif_thread_join_result == 0)
-  {
-    printf("DEBUG: Notification thread joined successfully\n");
-  }
-  else
-  {
-    printf("DEBUG: Failed to join notification thread, error code: %d\n", notif_thread_join_result);
-  }
+  pthread_join(notif_thread, NULL);
 
   printf("Agent process finished for client %d\n", client_fd);
   cleanup_agent(args->agent_id);
@@ -122,9 +112,7 @@ void *notification_thread(void *arg)
 
   while (1)
   {
-    printf("Notifying client %d\n", client_fd);
     notify_client(agent_id, client_fd);
-    printf("Notified client %d\n", client_fd);
   }
 
   return NULL;

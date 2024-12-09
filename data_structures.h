@@ -80,9 +80,6 @@ typedef struct
   demand_t demands[MAX_DEMANDS];
   supply_t supplies[MAX_SUPPLIES];
   watch_t watches[MAX_AGENTS];
-  int demand_count;
-  int supply_count;
-  int watch_count;
   pthread_mutex_t agent_mutexes[MAX_AGENTS];
   pthread_cond_t agent_conds[MAX_AGENTS];
   int next_agent_id;

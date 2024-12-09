@@ -34,6 +34,11 @@ void init_shared_memory()
   pthread_mutex_init(&shared_data->mutex, &mutexAttr);
 
   // Initialize other fields
+  memset(shared_data->demands, 0, sizeof(shared_data->demands));
+  memset(shared_data->supplies, 0, sizeof(shared_data->supplies));
+  memset(shared_data->watches, 0, sizeof(shared_data->watches));
+  memset(shared_data->agent_mutexes, 0, sizeof(shared_data->agent_mutexes));
+  memset(shared_data->agent_conds, 0, sizeof(shared_data->agent_conds));
   for (int i = 0; i < MAX_DEMANDS; i++)
   {
     shared_data->demands[i].agent_id = -1;
@@ -46,14 +51,6 @@ void init_shared_memory()
   {
     shared_data->watches[i].agent_id = -1;
   }
-  memset(shared_data->demands, 0, sizeof(shared_data->demands));
-  memset(shared_data->supplies, 0, sizeof(shared_data->supplies));
-  memset(shared_data->watches, 0, sizeof(shared_data->watches));
-  memset(shared_data->agent_mutexes, 0, sizeof(shared_data->agent_mutexes));
-  memset(shared_data->agent_conds, 0, sizeof(shared_data->agent_conds));
-  shared_data->demand_count = 0;
-  shared_data->supply_count = 0;
-  shared_data->watch_count = 0;
   shared_data->next_agent_id = 0;
 
   for (int i = 0; i < MAX_AGENTS; i++)
@@ -96,21 +93,21 @@ int add_demand(int agent_id, int nA, int nB, int nC)
   int y = shared_data->agent_positions[agent_id][1];
   printf("DEBUG: Adding demand for agent %d with resources [%d,%d,%d]\n",
          agent_id, nA, nB, nC);
-  if (shared_data->demand_count >= MAX_DEMANDS)
+  int empty_demand_index = find_first_empty_demand();
+  if (empty_demand_index == -1)
   {
     pthread_mutex_unlock(&shared_data->mutex);
     printf("Debug: exceeded max demands\n");
     return -1;
   }
-  demand_t *demand = &shared_data->demands[shared_data->demand_count];
+  demand_t *demand = &shared_data->demands[empty_demand_index];
   demand->agent_id = agent_id;
   demand->x = x;
   demand->y = y;
   demand->nA = nA;
   demand->nB = nB;
   demand->nC = nC;
-  check_match(agent_id, shared_data->demand_count, 1);
-  shared_data->demand_count++;
+  check_match(agent_id, empty_demand_index, 1);
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
@@ -130,14 +127,14 @@ int add_supply(int agent_id, int distance, int nA, int nB, int nC)
   int y = shared_data->agent_positions[agent_id][1];
   printf("DEBUG: Adding supply for agent %d at (%d,%d) with distance %d and resources [%d,%d,%d]\n",
          agent_id, x, y, distance, nA, nB, nC);
-  printf("Adding supply while supply count is %d\n", shared_data->supply_count);
-  if (shared_data->supply_count >= MAX_SUPPLIES)
+  int empty_supply_index = find_first_empty_supply();
+  if (empty_supply_index == -1)
   {
     pthread_mutex_unlock(&shared_data->mutex);
-    printf("Debug: exceeded max max_supplies\n");
+    printf("Debug: exceeded max supplies\n");
     return -1;
   }
-  supply_t *supply = &shared_data->supplies[shared_data->supply_count];
+  supply_t *supply = &shared_data->supplies[empty_supply_index];
   supply->agent_id = agent_id;
   supply->x = x;
   supply->y = y;
@@ -145,8 +142,7 @@ int add_supply(int agent_id, int distance, int nA, int nB, int nC)
   supply->nA = nA;
   supply->nB = nB;
   supply->nC = nC;
-  check_match(agent_id, shared_data->supply_count, 0);
-  shared_data->supply_count++;
+  check_match(agent_id, empty_supply_index, 0);
 
   for (int i = 0; i < MAX_AGENTS; i++)
   {
@@ -161,30 +157,32 @@ int add_supply(int agent_id, int distance, int nA, int nB, int nC)
 
       if (manhattan_distance <= watch->distance)
       {
+        printf("DEBUG: Sending notification for supply added\n");
         // Prepare notification
         notification_t notif;
         notif.type = SUPPLY_ADDED;
-        notif.agent_id = i;
+        notif.agent_id = watch->agent_id;
         notif.supplyX = x;
         notif.supplyY = y;
         notif.supplyA = nA;
         notif.supplyB = nB;
         notif.supplyC = nC;
         notif.supplyDistance = distance;
-        notif.supply_id = shared_data->supply_count - 1; // Index of the newly added supply
+        notif.supply_id = empty_supply_index;
         notif.timestamp = time(NULL);
 
         // Add notification to agent's queue
-        pthread_mutex_lock(&shared_data->notification_queue[i].mutex);
-        notification_queue_t *queue = &shared_data->notification_queue[i];
+        pthread_mutex_lock(&shared_data->notification_queue[watch->agent_id].mutex);
+        printf("Noitf queue lock for agent %d\n", watch->agent_id);
+        notification_queue_t *queue = &shared_data->notification_queue[watch->agent_id];
         queue->notifications[queue->tail] = notif;
         queue->tail = (queue->tail + 1) % MAX_NOTIFICATIONS;
-        pthread_mutex_unlock(&shared_data->notification_queue[i].mutex);
-
+        pthread_mutex_unlock(&shared_data->notification_queue[watch->agent_id].mutex);
+        printf("Noitf queue releasef for agent %d\n", watch->agent_id);
         // Notify the agent
-        pthread_mutex_lock(&shared_data->agent_mutexes[i]);
-        pthread_cond_signal(&shared_data->agent_conds[i]);
-        pthread_mutex_unlock(&shared_data->agent_mutexes[i]);
+        pthread_mutex_lock(&shared_data->agent_mutexes[watch->agent_id]);
+        pthread_cond_signal(&shared_data->agent_conds[watch->agent_id]);
+        pthread_mutex_unlock(&shared_data->agent_mutexes[watch->agent_id]);
       }
     }
   }
@@ -205,16 +203,7 @@ int add_watch(int agent_id, int distance)
   pthread_mutex_lock(&shared_data->mutex);
   int x = shared_data->agent_positions[agent_id][0];
   int y = shared_data->agent_positions[agent_id][1];
-  if (shared_data->watch_count >= MAX_AGENTS)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    printf("Debug: exceeded max watches/agents\n");
-    return -1;
-  }
   watch_t *watch = &shared_data->watches[agent_id];
-  // only up the watch count if new client is added, don't if update is made
-  if (watch->distance == 0)
-    shared_data->watch_count++;
   watch->agent_id = agent_id;
   watch->x = x;
   watch->y = y;
@@ -226,18 +215,10 @@ int add_watch(int agent_id, int distance)
 int remove_watch(int agent_id)
 {
   pthread_mutex_lock(&shared_data->mutex);
-  if (shared_data->watch_count <= 0)
-  {
-    int debug_watch_count = shared_data->watch_count;
-    pthread_mutex_unlock(&shared_data->mutex);
-    printf("Debug: there are no watches: %d\n", debug_watch_count);
-    return -1;
-  }
   shared_data->watches[agent_id].agent_id = -1;
   shared_data->watches[agent_id].x = 0;
   shared_data->watches[agent_id].y = 0;
   shared_data->watches[agent_id].distance = 0;
-  shared_data->watch_count--;
   pthread_mutex_unlock(&shared_data->mutex);
   return 0;
 }
@@ -262,7 +243,6 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
   printf("DEBUG: Checking matches for %s ID %d from agent %d\n",
          is_demand ? "demand" : "supply", demand_or_supply_id, agent_id);
   int had_a_match = 0;
-  int supply_removed = 0;
   int i_index = 0;
   int supplier_agent_id = -1;
   int demander_agent_id = -1;
@@ -279,13 +259,12 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
   int supplyDistance = 0;
   if (is_demand)
   {
-    for (int i = 0; i < shared_data->supply_count; i++)
+    for (int i = 0; i < MAX_SUPPLIES; i++)
     {
-      if (check_case(demand_or_supply_id, i))
+      if (shared_data->supplies[i].agent_id != -1 && check_case(demand_or_supply_id, i))
       {
-        shared_data->supplies[i].nA -= shared_data->demands[demand_or_supply_id].nA;
-        shared_data->supplies[i].nB -= shared_data->demands[demand_or_supply_id].nB;
-        shared_data->supplies[i].nC -= shared_data->demands[demand_or_supply_id].nC;
+        printf("DEBUG: Found match! Supplier agent: %d, Demander agent: %d, was it demand: %d\n",
+               supplier_agent_id, demander_agent_id, is_demand);
         supplier_agent_id = shared_data->supplies[i].agent_id;
         demander_agent_id = agent_id;
         supplyX = shared_data->supplies[i].x;
@@ -299,10 +278,14 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
         demandA = shared_data->demands[demand_or_supply_id].nA;
         demandB = shared_data->demands[demand_or_supply_id].nB;
         demandC = shared_data->demands[demand_or_supply_id].nC;
-        if (shared_data->supplies[i].nA - shared_data->demands[demand_or_supply_id].nA == 0 && shared_data->supplies[i].nB - shared_data->demands[demand_or_supply_id].nB == 0 && shared_data->supplies[i].nC - shared_data->demands[demand_or_supply_id].nC == 0)
+
+        shared_data->supplies[i].nA -= shared_data->demands[demand_or_supply_id].nA;
+        shared_data->supplies[i].nB -= shared_data->demands[demand_or_supply_id].nB;
+        shared_data->supplies[i].nC -= shared_data->demands[demand_or_supply_id].nC;
+
+        if (shared_data->supplies[i].nA == 0 && shared_data->supplies[i].nB == 0 && shared_data->supplies[i].nC == 0)
         {
           remove_supply_nolock(shared_data->supplies[i].agent_id, i);
-          supply_removed = 1;
         }
         remove_demand_nolock(agent_id, demand_or_supply_id);
 
@@ -314,10 +297,12 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
   }
   else
   {
-    for (int i = 0; i < shared_data->demand_count; i++)
+    for (int i = 0; i < MAX_DEMANDS; i++)
     {
-      if (check_case(i, demand_or_supply_id))
+      if (shared_data->demands[i].agent_id != -1 && check_case(i, demand_or_supply_id))
       {
+        printf("DEBUG: Found match! Supplier agent: %d, Demander agent: %d, was it demand: %d\n",
+               supplier_agent_id, demander_agent_id, is_demand);
         supplier_agent_id = agent_id;
         demander_agent_id = shared_data->demands[i].agent_id;
         supplyX = shared_data->supplies[demand_or_supply_id].x;
@@ -331,10 +316,13 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
         demandA = shared_data->demands[i].nA;
         demandB = shared_data->demands[i].nB;
         demandC = shared_data->demands[i].nC;
-        if (shared_data->supplies[demand_or_supply_id].nA - shared_data->demands[i].nA == 0 && shared_data->supplies[demand_or_supply_id].nB - shared_data->demands[i].nB == 0 && shared_data->supplies[demand_or_supply_id].nC - shared_data->demands[i].nC == 0)
+
+        shared_data->supplies[demand_or_supply_id].nA -= shared_data->demands[i].nA;
+        shared_data->supplies[demand_or_supply_id].nB -= shared_data->demands[i].nB;
+        shared_data->supplies[demand_or_supply_id].nC -= shared_data->demands[i].nC;
+        if (shared_data->supplies[demand_or_supply_id].nA == 0 && shared_data->supplies[demand_or_supply_id].nB == 0 && shared_data->supplies[demand_or_supply_id].nC == 0)
         {
           remove_supply_nolock(shared_data->supplies[demand_or_supply_id].agent_id, demand_or_supply_id);
-          supply_removed = 1;
         }
         remove_demand_nolock(agent_id, i);
         i_index = i;
@@ -346,8 +334,7 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
 
   if (had_a_match)
   {
-    printf("DEBUG: Found match! Supplier agent: %d, Demander agent: %d, was it demand: %d\n",
-           supplier_agent_id, demander_agent_id, is_demand);
+    printf("DEBUG: Sending notifications for match\n");
 
     // Prepare notification
     notification_t notif_sup;
@@ -369,10 +356,12 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
     notif_sup.agent_id = supplier_agent_id;
     // Notify the supplier
     pthread_mutex_lock(&shared_data->notification_queue[supplier_agent_id].mutex);
+    printf("Noitf queue lock for agent %d\n", supplier_agent_id);
     notification_queue_t *supplier_queue = &shared_data->notification_queue[supplier_agent_id];
     supplier_queue->notifications[supplier_queue->tail] = notif_sup;
     supplier_queue->tail = (supplier_queue->tail + 1) % MAX_NOTIFICATIONS;
     pthread_mutex_unlock(&shared_data->notification_queue[supplier_agent_id].mutex);
+    printf("Noitf queue release for agent %d\n", supplier_agent_id);
 
     pthread_mutex_lock(&shared_data->agent_mutexes[supplier_agent_id]);
     pthread_cond_signal(&shared_data->agent_conds[supplier_agent_id]);
@@ -406,27 +395,6 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
     pthread_mutex_lock(&shared_data->agent_mutexes[demander_agent_id]);
     pthread_cond_signal(&shared_data->agent_conds[demander_agent_id]);
     pthread_mutex_unlock(&shared_data->agent_mutexes[demander_agent_id]);
-
-    if (supply_removed)
-    {
-      printf("DEBUG: Supply removed! Supplier agent: %d, Supply ID: %d\n", supplier_agent_id, is_demand ? demand_or_supply_id : i_index);
-      notification_t notif_rem;
-      notif_rem.type = SUPPLY_REMOVED;
-      notif_rem.supply_id = is_demand ? demand_or_supply_id : i_index;
-      notif_rem.agent_id = supplier_agent_id;
-      notif_rem.timestamp = time(NULL);
-
-      // Notify the supplier
-      pthread_mutex_lock(&shared_data->notification_queue[supplier_agent_id].mutex);
-      notification_queue_t *supplier_queue = &shared_data->notification_queue[supplier_agent_id];
-      supplier_queue->notifications[supplier_queue->tail] = notif_rem;
-      supplier_queue->tail = (supplier_queue->tail + 1) % MAX_NOTIFICATIONS;
-      pthread_mutex_unlock(&shared_data->notification_queue[supplier_agent_id].mutex);
-
-      pthread_mutex_lock(&shared_data->agent_mutexes[supplier_agent_id]);
-      pthread_cond_signal(&shared_data->agent_conds[supplier_agent_id]);
-      pthread_mutex_unlock(&shared_data->agent_mutexes[supplier_agent_id]);
-    }
   }
   return had_a_match;
 }
@@ -439,41 +407,28 @@ int check_case(int demand_id, int supply_id)
   int bool2 = shared_data->demands[demand_id].nA <= shared_data->supplies[supply_id].nA;
   int bool3 = shared_data->demands[demand_id].nB <= shared_data->supplies[supply_id].nB;
   int bool4 = shared_data->demands[demand_id].nC <= shared_data->supplies[supply_id].nC;
+  int bool5 = shared_data->supplies[supply_id].agent_id != shared_data->demands[demand_id].agent_id;
+  printf("DEBUG: Distance check: %d, Resource checks: [%d,%d,%d], Agent check: %d\n", bool1, bool2, bool3, bool4, bool5);
 
-  printf("DEBUG: Distance check: %d, Resource checks: [%d,%d,%d]\n", bool1, bool2, bool3, bool4);
-
-  return bool1 & bool2 & bool3 & bool4;
+  return bool1 & bool2 & bool3 & bool4 & bool5;
 }
 
 int remove_demand_nolock(int agent_id, int demand_id)
 {
-  printf("DEBUG: Removing demand %d for agent %d while demand count is %d\n", demand_id, agent_id, shared_data->demand_count);
   // Assume mutex is already locked
-  if (shared_data->demand_count <= 0)
-  {
-    printf("Debug: there are no demands\n");
-    return -1;
-  }
-  // Remove demand logic
   shared_data->demands[demand_id].agent_id = -1;
   shared_data->demands[demand_id].x = 0;
   shared_data->demands[demand_id].y = 0;
   shared_data->demands[demand_id].nA = 0;
   shared_data->demands[demand_id].nB = 0;
   shared_data->demands[demand_id].nC = 0;
-  shared_data->demand_count--;
   return 0;
 }
 
 int remove_supply_nolock(int agent_id, int supply_id)
 {
-  printf("DEBUG: Removing supply %d for agent %d while supply count is %d\n", supply_id, agent_id, shared_data->supply_count);
   // Assume mutex is already locked
-  if (shared_data->supply_count <= 0)
-  {
-    printf("Debug: there are no supplies\n");
-    return -1;
-  }
+
   shared_data->supplies[supply_id].agent_id = -1;
   shared_data->supplies[supply_id].x = 0;
   shared_data->supplies[supply_id].y = 0;
@@ -481,9 +436,9 @@ int remove_supply_nolock(int agent_id, int supply_id)
   shared_data->supplies[supply_id].nA = 0;
   shared_data->supplies[supply_id].nB = 0;
   shared_data->supplies[supply_id].nC = 0;
-  shared_data->supply_count--;
 
   // After removing the supply
+  printf("DEBUG: Sending notification for supply removal\n");
   notification_t notif;
   notif.type = SUPPLY_REMOVED;
   notif.supply_id = supply_id;
@@ -493,11 +448,12 @@ int remove_supply_nolock(int agent_id, int supply_id)
   // Add notification to agent's queue
   int supplier_agent_id = agent_id; // or use shared_data->supplies[supply_id].agent_id
   pthread_mutex_lock(&shared_data->notification_queue[supplier_agent_id].mutex);
+  printf("Noitf queue lock for agent %d\n", supplier_agent_id);
   notification_queue_t *queue = &shared_data->notification_queue[supplier_agent_id];
   queue->notifications[queue->tail] = notif;
   queue->tail = (queue->tail + 1) % MAX_NOTIFICATIONS;
   pthread_mutex_unlock(&shared_data->notification_queue[supplier_agent_id].mutex);
-
+  printf("Noitf queue release for agent %d\n", supplier_agent_id);
   // Notify the agent
   pthread_mutex_lock(&shared_data->agent_mutexes[supplier_agent_id]);
   pthread_cond_signal(&shared_data->agent_conds[supplier_agent_id]);
@@ -508,22 +464,23 @@ int remove_supply_nolock(int agent_id, int supply_id)
 
 void notify_client(int agent_id, int client_fd)
 {
-  printf("DEBUG: Notifying client (agent %d) on fd %d\n", agent_id, client_fd);
-
   // Wait for notification
   pthread_mutex_lock(&shared_data->agent_mutexes[agent_id]);
+  printf("DEBUG: Waiting for notification (agent %d) on fd %d\n", agent_id, client_fd);
   pthread_cond_wait(&shared_data->agent_conds[agent_id], &shared_data->agent_mutexes[agent_id]);
+  printf("DEBUG: Got the notification (agent %d) on fd %d\n", agent_id, client_fd);
   pthread_mutex_unlock(&shared_data->agent_mutexes[agent_id]);
 
+  printf("DEBUG: Notifying client (agent %d) on fd %d\n", agent_id, client_fd);
   // Retrieve notifications from the agent's queue
+  pthread_mutex_lock(&shared_data->notification_queue[agent_id].mutex);
   notification_queue_t *queue = &shared_data->notification_queue[agent_id];
-  pthread_mutex_lock(&queue->mutex);
 
+  printf("DEBUG: got the queue lock Notifying client (agent %d) on fd %d\n", agent_id, client_fd);
   while (queue->head != queue->tail)
   {
     notification_t notif = queue->notifications[queue->head];
     queue->head = (queue->head + 1) % MAX_NOTIFICATIONS;
-    pthread_mutex_unlock(&queue->mutex);
 
     printf("DEBUG: Processing notification type %d for agent %d\n", notif.type, agent_id);
 
@@ -554,10 +511,11 @@ void notify_client(int agent_id, int client_fd)
                notif.supplyA, notif.supplyB, notif.supplyC, notif.supplyX, notif.supplyY);
     }
     // Send the message to the client
+    printf("DEBUG: Sending message to client %d: %s\n", agent_id, message);
     write(client_fd, message, strlen(message));
-
-    pthread_mutex_lock(&queue->mutex);
   }
+  printf("DEBUG: Done processing notifications for agent %d\n", agent_id);
+
   pthread_mutex_unlock(&queue->mutex);
 }
 
@@ -570,11 +528,10 @@ void get_next_agent_id(int *agent_id)
 
 void remove_all_demands_nolock(int agent_id)
 {
-  for (int i = 0; i < shared_data->demand_count; i++)
+  for (int i = 0; i < MAX_DEMANDS; i++)
   {
     if (shared_data->demands[i].agent_id == agent_id)
     {
-      shared_data->demand_count--;
       shared_data->demands[i].agent_id = -1;
       shared_data->demands[i].x = 0;
       shared_data->demands[i].y = 0;
@@ -587,11 +544,10 @@ void remove_all_demands_nolock(int agent_id)
 
 void remove_all_supplies_nolock(int agent_id)
 {
-  for (int i = 0; i < shared_data->supply_count; i++)
+  for (int i = 0; i < MAX_SUPPLIES; i++)
   {
     if (shared_data->supplies[i].agent_id == agent_id)
     {
-      shared_data->supply_count--;
       shared_data->supplies[i].agent_id = -1;
       shared_data->supplies[i].x = 0;
       shared_data->supplies[i].y = 0;
@@ -624,22 +580,20 @@ char *create_supply_response(int agent_id, int all)
   pthread_mutex_lock(&shared_data->mutex);
 
   // Count matching supplies first
-  int count = 0;
-  for (int i = 0; i < shared_data->supply_count; i++)
+  int count = 0, all_count = 0;
+  for (int i = 0; i < MAX_SUPPLIES; i++)
   {
     if (shared_data->supplies[i].agent_id == agent_id)
     {
       count++;
     }
+    if (shared_data->supplies[i].agent_id != -1)
+    {
+      all_count++;
+    }
   }
   if (all)
-    count = shared_data->supply_count;
-  // Handle empty case
-  if (count == 0)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return strdup("Error: No supplies found\n");
-  }
+    count = all_count;
 
   // Allocate space for the response
   char *response = malloc(1024 * sizeof(char));
@@ -651,11 +605,11 @@ char *create_supply_response(int agent_id, int all)
 
   // Start building the response
   snprintf(response, 1024, "There are %d supplies in total.\n", count);
-  strcat(response, "X       |Y       |A    |B    |C    |D       |\n");
+  strcat(response, "X      |Y      |A    |B    |C    |D      |\n");
   strcat(response, "-------+-------+-----+-----+-----+-------+\n");
 
   // Add each supply to the response
-  for (int i = 0; i < shared_data->supply_count; i++)
+  for (int i = 0; i < MAX_SUPPLIES; i++)
   {
     if (shared_data->supplies[i].agent_id == agent_id || (all && shared_data->supplies[i].agent_id != -1))
     {
@@ -680,22 +634,20 @@ char *create_demand_response(int agent_id, int all)
   pthread_mutex_lock(&shared_data->mutex);
 
   // Count matching demands first
-  int count = 0;
-  for (int i = 0; i < shared_data->demand_count; i++)
+  int count = 0, all_count = 0;
+  for (int i = 0; i < MAX_DEMANDS; i++)
   {
     if (shared_data->demands[i].agent_id == agent_id)
     {
       count++;
     }
+    if (shared_data->demands[i].agent_id != -1)
+    {
+      all_count++;
+    }
   }
   if (all)
-    count = shared_data->demand_count;
-  // Handle empty case
-  if (count == 0)
-  {
-    pthread_mutex_unlock(&shared_data->mutex);
-    return strdup("Error: No demands found\n");
-  }
+    count = all_count;
 
   // Allocate space for the response
   char *response = malloc(1024 * sizeof(char));
@@ -707,11 +659,11 @@ char *create_demand_response(int agent_id, int all)
 
   // Start building the response
   snprintf(response, 1024, "There are %d demands in total.\n", count);
-  strcat(response, "X       |Y       |A    |B    |C    |\n");
+  strcat(response, "X      |Y      |A    |B    |C    |\n");
   strcat(response, "-------+-------+-----+-----+-----+\n");
 
   // Add each demand to the response
-  for (int i = 0; i < shared_data->demand_count; i++)
+  for (int i = 0; i < MAX_DEMANDS; i++)
   {
     if (shared_data->demands[i].agent_id == agent_id || (all && shared_data->demands[i].agent_id != -1))
     {
@@ -728,4 +680,24 @@ char *create_demand_response(int agent_id, int all)
   pthread_mutex_unlock(&shared_data->mutex);
 
   return response;
+}
+
+int find_first_empty_supply()
+{
+  for (int i = 0; i < MAX_SUPPLIES; i++)
+  {
+    if (shared_data->supplies[i].agent_id == -1)
+      return i;
+  }
+  return -1;
+}
+
+int find_first_empty_demand()
+{
+  for (int i = 0; i < MAX_DEMANDS; i++)
+  {
+    if (shared_data->demands[i].agent_id == -1)
+      return i;
+  }
+  return -1;
 }

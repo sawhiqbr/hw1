@@ -9,6 +9,7 @@
     "data_structures.h": "c",
     "commands.h": "c",
     "shared_memory.h": "c",
-    "agent.h": "c"
+    "agent.h": "c",
+    "ctype.h": "c"
   }
 }

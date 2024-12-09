@@ -5,12 +5,17 @@ OK demand 1
 OK watch 1
 OK move 1
 OK supply 1
-Your supply at (25,20), [3,3,3] with distance 10 is delivered to a client at (20,20) [2,2,2].
-Your demand at (20,20), [2,2,2] is fulfilled by a client at (25,20).
-Error: No demands found
+A supply [5,0,0] is inserted at (10,10).
+There are 1 demands in total.
+X      |Y      |A    |B    |C    |
+-------+-------+-----+-----+-----+
+     20|     20|    2|    2|    2|
+Your demand at (20,20), [2,2,2] is fulfilled by a client at (99,99).
+A supply [10,10,10] is inserted at (99,99).
 There are 1 supplies in total.
-X       |Y       |A    |B    |C    |D       |
+X      |Y      |A    |B    |C    |D      |
 -------+-------+-----+-----+-----+-------+
-     25|     20|    3|    3|    3|     10|
+     25|     20|    3|    3|    3|    200|
+Your supply is removed from map.
 OK unwatch 1
-OK
+Your supply at (25,20), [3,3,3] with distance 200 is delivered to a client at (0,50) [3,3,3].

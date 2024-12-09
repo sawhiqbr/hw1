@@ -324,6 +324,7 @@ void *client_thread(void *arg)
       }
     }
 
+    usleep(1000000); // 1 second
     fclose(script_fp);
   }
 

@@ -40,4 +40,7 @@ char *create_supply_response(int agent_id, int all);
 
 char *create_demand_response(int agent_id, int all);
 
+int find_first_empty_supply();
+
+int find_first_empty_demand();
 #endif // SHARED_MEMORY_H
