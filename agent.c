@@ -12,7 +12,6 @@ typedef struct
 {
   int client_fd;
   int agent_id;
-  // Additional fields if needed
 } agent_args_t;
 
 void *command_handler_thread(void *arg);
@@ -22,13 +21,11 @@ char *trim_whitespace(char *str);
 
 void agent_process(int client_fd)
 {
-  printf("Agent process started for client %d\n", client_fd);
   pthread_t cmd_thread, notif_thread;
   agent_args_t *args = malloc(sizeof(agent_args_t));
   args->client_fd = client_fd;
 
   get_next_agent_id(&args->agent_id);
-  printf("Next agent id: %d\n", args->agent_id);
   // Register agent in shared memory if needed
 
   // Create command handler thread
@@ -54,7 +51,6 @@ void agent_process(int client_fd)
   pthread_cancel(notif_thread); // Cancel notification thread if command handler exits
   pthread_join(notif_thread, NULL);
 
-  printf("Agent process finished for client %d\n", client_fd);
   cleanup_agent(args->agent_id);
   close(client_fd);
   free(args);
@@ -73,7 +69,6 @@ void *command_handler_thread(void *arg)
     if (bytes_read <= 0)
     {
       // Client closed connection or error
-      printf("Client closed connection\n");
       break;
     }
 
@@ -85,10 +80,8 @@ void *command_handler_thread(void *arg)
     while ((newline_pos = strchr(line_start, '\n')) != NULL)
     {
       *newline_pos = '\0'; // Replace newline with null terminator
-      printf("AGENT: Command: %s\n", line_start);
       // Now line_start points to a complete command string
       handle_command(args, line_start);
-      printf("AGENT: Handled command: %s\n", line_start);
       // Move to the next line
       line_start = newline_pos + 1;
     }
@@ -124,7 +117,6 @@ void handle_command(agent_args_t *args, char *command_str)
   int agent_id = args->agent_id;
 
   char *command = trim_whitespace(command_str);
-  printf("Received command: %s\n", command);
   if (strncmp(command, "move ", 5) == 0)
   {
     int x, y;
@@ -134,7 +126,7 @@ void handle_command(agent_args_t *args, char *command_str)
       if (move(agent_id, x, y) == 0)
       {
         char response[20];
-        snprintf(response, sizeof(response), "OK move %d\n", agent_id);
+        snprintf(response, sizeof(response), "OK");
         write(client_fd, response, strlen(response));
       }
       else
@@ -155,7 +147,7 @@ void handle_command(agent_args_t *args, char *command_str)
       if (add_demand(agent_id, nA, nB, nC) == 0)
       {
         char response[20];
-        snprintf(response, sizeof(response), "OK demand %d\n", agent_id);
+        snprintf(response, sizeof(response), "OK");
         write(client_fd, response, strlen(response));
       }
       else
@@ -176,7 +168,7 @@ void handle_command(agent_args_t *args, char *command_str)
       if (add_supply(agent_id, distance, nA, nB, nC) == 0)
       {
         char response[20];
-        snprintf(response, sizeof(response), "OK supply %d\n", agent_id);
+        snprintf(response, sizeof(response), "OK");
         write(client_fd, response, strlen(response));
       }
       else
@@ -197,7 +189,7 @@ void handle_command(agent_args_t *args, char *command_str)
       if (add_watch(agent_id, distance) == 0)
       {
         char response[20];
-        snprintf(response, sizeof(response), "OK watch %d\n", agent_id);
+        snprintf(response, sizeof(response), "OK");
         write(client_fd, response, strlen(response));
       }
       else
@@ -215,7 +207,7 @@ void handle_command(agent_args_t *args, char *command_str)
     if (remove_watch(agent_id) == 0)
     {
       char response[20];
-      snprintf(response, sizeof(response), "OK unwatch %d\n", agent_id);
+      snprintf(response, sizeof(response), "OK");
       write(client_fd, response, strlen(response));
     }
     else
@@ -282,12 +274,12 @@ void handle_command(agent_args_t *args, char *command_str)
 
   else if (strcmp(command, "quit") == 0)
   {
-    write(client_fd, "OK\n", 3);
+    write(client_fd, "OK", 3);
     pthread_exit(NULL);
   }
   else
   {
-    write(client_fd, "Error: Unknown command\n", 23);
+    printf("Unknown command\n");
   }
 }
 

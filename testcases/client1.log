@@ -1,44 +1,39 @@
 Client 0: Connecting to Unix domain socket at '/tmp/supdem.sock'
 Client 0: Running script 'testcase1.txt'
-OK move 0
-OK watch 0
-OK demand 0
-A supply [3,3,3] is inserted at (25,20).
-OK supply 0
-There are 1 demands in total.
+OKOKOKOKThere are 1 demands in total.
 X      |Y      |A    |B    |C    |
 -------+-------+-----+-----+-----+
      10|     10|    5|    0|    0|
-A supply [10,10,10] is inserted at (99,99).
 There are 1 supplies in total.
 X      |Y      |A    |B    |C    |D      |
 -------+-------+-----+-----+-----+-------+
      10|     10|    5|    0|    0|    200|
-OK supply 0
-Your supply at (10,10), [13,13,13] with distance 200 is delivered to a client at (99,99) [10,10,10].
-A supply [3,3,3] is inserted at (0,50).
+OKYour supply at (10,10), [13,13,13] with distance 200 is delivered to a client at (20,20) [2,2,2].
 There are 1 demands in total.
 X      |Y      |A    |B    |C    |
 -------+-------+-----+-----+-----+
      10|     10|    5|    0|    0|
-Your demand at (10,10), [5,0,0] is fulfilled by a client at (50,50).
-A supply [5,5,5] is inserted at (50,50).
-There are 5 supplies in total.
+A supply [3,3,3] is inserted at (25,20).
+Your supply at (10,10), [11,11,11] with distance 200 is delivered to a client at (0,50) [3,3,3].
+A supply [3,3,3] is inserted at (0,50).
+Your supply is removed from map.
+Your supply at (10,10), [5,0,0] with distance 200 is delivered to a client at (0,50) [5,0,0].
+Your demand at (10,10), [5,0,0] is fulfilled by a client at (0,50).
+A supply [5,0,0] is inserted at (0,50).
+A supply [5,0,0] is inserted at (0,50).
+There are 4 supplies in total.
 X      |Y      |A    |B    |C    |D      |
 -------+-------+-----+-----+-----+-------+
-     10|     10|    3|    3|    3|    200|
-     10|     10|    5|    0|    0|    200|
-     99|     99|    8|    8|    8|    200|
+      0|     50|    5|    0|    0|    200|
+     10|     10|    8|    8|    8|    200|
+     25|     20|    3|    3|    3|    200|
       0|     50|    3|    3|    3|    200|
-     50|     50|    0|    5|    5|    200|
+A supply [10,10,10] is inserted at (99,99).
 There are 0 demands in total.
 X      |Y      |A    |B    |C    |
 -------+-------+-----+-----+-----+
-Your supply is removed from map.
-Your supply at (10,10), [5,0,0] with distance 200 is delivered to a client at (0,50) [5,0,0].
 There are 1 supplies in total.
 X      |Y      |A    |B    |C    |D      |
 -------+-------+-----+-----+-----+-------+
-     10|     10|    3|    3|    3|    200|
-A supply [5,0,0] is inserted at (0,50).
-A supply [5,0,0] is inserted at (0,50).
+     10|     10|    8|    8|    8|    200|
+A supply [5,5,5] is inserted at (50,50).
