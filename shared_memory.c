@@ -91,13 +91,11 @@ int add_demand(int agent_id, int nA, int nB, int nC)
   pthread_mutex_lock(&shared_data->mutex);
   int x = shared_data->agent_positions[agent_id][0];
   int y = shared_data->agent_positions[agent_id][1];
-  printf("DEBUG: Adding demand for agent %d with resources [%d,%d,%d]\n",
-         agent_id, nA, nB, nC);
   int empty_demand_index = find_first_empty_demand();
   if (empty_demand_index == -1)
   {
-    pthread_mutex_unlock(&shared_data->mutex);
     printf("Debug: exceeded max demands\n");
+    pthread_mutex_unlock(&shared_data->mutex);
     return -1;
   }
   demand_t *demand = &shared_data->demands[empty_demand_index];
@@ -125,13 +123,11 @@ int add_supply(int agent_id, int distance, int nA, int nB, int nC)
   pthread_mutex_lock(&shared_data->mutex);
   int x = shared_data->agent_positions[agent_id][0];
   int y = shared_data->agent_positions[agent_id][1];
-  printf("DEBUG: Adding supply for agent %d at (%d,%d) with distance %d and resources [%d,%d,%d]\n",
-         agent_id, x, y, distance, nA, nB, nC);
   int empty_supply_index = find_first_empty_supply();
   if (empty_supply_index == -1)
   {
-    pthread_mutex_unlock(&shared_data->mutex);
     printf("Debug: exceeded max supplies\n");
+    pthread_mutex_unlock(&shared_data->mutex);
     return -1;
   }
   supply_t *supply = &shared_data->supplies[empty_supply_index];
@@ -152,12 +148,9 @@ int add_supply(int agent_id, int distance, int nA, int nB, int nC)
       int dx = abs(watch->x - x);
       int dy = abs(watch->y - y);
       int manhattan_distance = dx + dy;
-      printf("DEBUG: Checking watch for agent %d - watch distance: %d, manhattan distance: %d\n",
-             watch->agent_id, watch->distance, manhattan_distance);
 
       if (manhattan_distance <= watch->distance)
       {
-        printf("DEBUG: Sending notification for supply added\n");
         // Prepare notification
         notification_t notif;
         notif.type = SUPPLY_ADDED;
@@ -173,12 +166,10 @@ int add_supply(int agent_id, int distance, int nA, int nB, int nC)
 
         // Add notification to agent's queue
         pthread_mutex_lock(&shared_data->notification_queue[watch->agent_id].mutex);
-        printf("Noitf queue lock for agent %d\n", watch->agent_id);
         notification_queue_t *queue = &shared_data->notification_queue[watch->agent_id];
         queue->notifications[queue->tail] = notif;
         queue->tail = (queue->tail + 1) % MAX_NOTIFICATIONS;
         pthread_mutex_unlock(&shared_data->notification_queue[watch->agent_id].mutex);
-        printf("Noitf queue releasef for agent %d\n", watch->agent_id);
         // Notify the agent
         pthread_mutex_lock(&shared_data->agent_mutexes[watch->agent_id]);
         pthread_cond_signal(&shared_data->agent_conds[watch->agent_id]);
@@ -229,7 +220,6 @@ int move(int agent_id, int x, int y)
   if (agent_id >= MAX_AGENTS)
   {
     pthread_mutex_unlock(&shared_data->mutex);
-    printf("Debug: there is no such agent: %d\n", agent_id);
     return -1;
   }
   shared_data->agent_positions[agent_id][0] = x;
@@ -240,8 +230,6 @@ int move(int agent_id, int x, int y)
 
 int check_match(int agent_id, int demand_or_supply_id, int is_demand)
 {
-  printf("DEBUG: Checking matches for %s ID %d from agent %d\n",
-         is_demand ? "demand" : "supply", demand_or_supply_id, agent_id);
   int had_a_match = 0;
   int i_index = 0;
   int supplier_agent_id = -1;
@@ -263,8 +251,6 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
     {
       if (shared_data->supplies[i].agent_id != -1 && check_case(demand_or_supply_id, i))
       {
-        printf("DEBUG: Found match! Supplier agent: %d, Demander agent: %d, was it demand: %d\n",
-               supplier_agent_id, demander_agent_id, is_demand);
         supplier_agent_id = shared_data->supplies[i].agent_id;
         demander_agent_id = agent_id;
         supplyX = shared_data->supplies[i].x;
@@ -301,8 +287,6 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
     {
       if (shared_data->demands[i].agent_id != -1 && check_case(i, demand_or_supply_id))
       {
-        printf("DEBUG: Found match! Supplier agent: %d, Demander agent: %d, was it demand: %d\n",
-               supplier_agent_id, demander_agent_id, is_demand);
         supplier_agent_id = agent_id;
         demander_agent_id = shared_data->demands[i].agent_id;
         supplyX = shared_data->supplies[demand_or_supply_id].x;
@@ -334,8 +318,6 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
 
   if (had_a_match)
   {
-    printf("DEBUG: Sending notifications for match\n");
-
     // Prepare notification
     notification_t notif_sup;
     notif_sup.type = SUPPLY_DELIVERED;
@@ -356,12 +338,10 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
     notif_sup.agent_id = supplier_agent_id;
     // Notify the supplier
     pthread_mutex_lock(&shared_data->notification_queue[supplier_agent_id].mutex);
-    printf("Noitf queue lock for agent %d\n", supplier_agent_id);
     notification_queue_t *supplier_queue = &shared_data->notification_queue[supplier_agent_id];
     supplier_queue->notifications[supplier_queue->tail] = notif_sup;
     supplier_queue->tail = (supplier_queue->tail + 1) % MAX_NOTIFICATIONS;
     pthread_mutex_unlock(&shared_data->notification_queue[supplier_agent_id].mutex);
-    printf("Noitf queue release for agent %d\n", supplier_agent_id);
 
     pthread_mutex_lock(&shared_data->agent_mutexes[supplier_agent_id]);
     pthread_cond_signal(&shared_data->agent_conds[supplier_agent_id]);
@@ -401,14 +381,11 @@ int check_match(int agent_id, int demand_or_supply_id, int is_demand)
 
 int check_case(int demand_id, int supply_id)
 {
-  printf("DEBUG: Checking compatibility between demand %d and supply %d\n", demand_id, supply_id);
-
   int bool1 = (shared_data->supplies[supply_id].distance > (abs(shared_data->demands[demand_id].x - shared_data->supplies[supply_id].x) + abs(shared_data->demands[demand_id].y - shared_data->supplies[supply_id].y)));
   int bool2 = shared_data->demands[demand_id].nA <= shared_data->supplies[supply_id].nA;
   int bool3 = shared_data->demands[demand_id].nB <= shared_data->supplies[supply_id].nB;
   int bool4 = shared_data->demands[demand_id].nC <= shared_data->supplies[supply_id].nC;
   int bool5 = shared_data->supplies[supply_id].agent_id != shared_data->demands[demand_id].agent_id;
-  printf("DEBUG: Distance check: %d, Resource checks: [%d,%d,%d], Agent check: %d\n", bool1, bool2, bool3, bool4, bool5);
 
   return bool1 & bool2 & bool3 & bool4 & bool5;
 }
@@ -438,7 +415,6 @@ int remove_supply_nolock(int agent_id, int supply_id)
   shared_data->supplies[supply_id].nC = 0;
 
   // After removing the supply
-  printf("DEBUG: Sending notification for supply removal\n");
   notification_t notif;
   notif.type = SUPPLY_REMOVED;
   notif.supply_id = supply_id;
@@ -448,12 +424,11 @@ int remove_supply_nolock(int agent_id, int supply_id)
   // Add notification to agent's queue
   int supplier_agent_id = agent_id; // or use shared_data->supplies[supply_id].agent_id
   pthread_mutex_lock(&shared_data->notification_queue[supplier_agent_id].mutex);
-  printf("Noitf queue lock for agent %d\n", supplier_agent_id);
   notification_queue_t *queue = &shared_data->notification_queue[supplier_agent_id];
   queue->notifications[queue->tail] = notif;
   queue->tail = (queue->tail + 1) % MAX_NOTIFICATIONS;
   pthread_mutex_unlock(&shared_data->notification_queue[supplier_agent_id].mutex);
-  printf("Noitf queue release for agent %d\n", supplier_agent_id);
+
   // Notify the agent
   pthread_mutex_lock(&shared_data->agent_mutexes[supplier_agent_id]);
   pthread_cond_signal(&shared_data->agent_conds[supplier_agent_id]);
@@ -466,55 +441,47 @@ void notify_client(int agent_id, int client_fd)
 {
   // Wait for notification
   pthread_mutex_lock(&shared_data->agent_mutexes[agent_id]);
-  printf("DEBUG: Waiting for notification (agent %d) on fd %d\n", agent_id, client_fd);
   pthread_cond_wait(&shared_data->agent_conds[agent_id], &shared_data->agent_mutexes[agent_id]);
-  printf("DEBUG: Got the notification (agent %d) on fd %d\n", agent_id, client_fd);
   pthread_mutex_unlock(&shared_data->agent_mutexes[agent_id]);
 
-  printf("DEBUG: Notifying client (agent %d) on fd %d\n", agent_id, client_fd);
   // Retrieve notifications from the agent's queue
   pthread_mutex_lock(&shared_data->notification_queue[agent_id].mutex);
   notification_queue_t *queue = &shared_data->notification_queue[agent_id];
 
-  printf("DEBUG: got the queue lock Notifying client (agent %d) on fd %d\n", agent_id, client_fd);
   while (queue->head != queue->tail)
   {
     notification_t notif = queue->notifications[queue->head];
     queue->head = (queue->head + 1) % MAX_NOTIFICATIONS;
-
-    printf("DEBUG: Processing notification type %d for agent %d\n", notif.type, agent_id);
 
     // Process the notification
     char message[256];
     if (notif.type == DEMAND_FULFILLED)
     {
       snprintf(message, sizeof(message),
-               "Your demand at (%d,%d), [%d,%d,%d] is fulfilled by a client at (%d,%d).\n",
+               "Your demand at (%d,%d), [%d,%d,%d] is fulfilled by a client at (%d,%d).",
                notif.demandX, notif.demandY, notif.demandA, notif.demandB, notif.demandC,
                notif.supplyX, notif.supplyY);
     }
     else if (notif.type == SUPPLY_DELIVERED)
     {
       snprintf(message, sizeof(message),
-               "Your supply at (%d,%d), [%d,%d,%d] with distance %d is delivered to a client at (%d,%d) [%d,%d,%d].\n",
+               "Your supply at (%d,%d), [%d,%d,%d] with distance %d is delivered to a client at (%d,%d) [%d,%d,%d].",
                notif.supplyX, notif.supplyY, notif.supplyA, notif.supplyB, notif.supplyC, notif.supplyDistance,
                notif.demandX, notif.demandY, notif.demandA, notif.demandB, notif.demandC);
     }
     else if (notif.type == SUPPLY_REMOVED)
     {
-      snprintf(message, sizeof(message), "Your supply is removed from map.\n");
+      snprintf(message, sizeof(message), "Your supply is removed from map.");
     }
     else if (notif.type == SUPPLY_ADDED)
     {
       snprintf(message, sizeof(message),
-               "A supply [%d,%d,%d] is inserted at (%d,%d).\n",
+               "A supply [%d,%d,%d] is inserted at (%d,%d).",
                notif.supplyA, notif.supplyB, notif.supplyC, notif.supplyX, notif.supplyY);
     }
     // Send the message to the client
-    printf("DEBUG: Sending message to client %d: %s\n", agent_id, message);
     write(client_fd, message, strlen(message));
   }
-  printf("DEBUG: Done processing notifications for agent %d\n", agent_id);
 
   pthread_mutex_unlock(&queue->mutex);
 }
@@ -571,7 +538,6 @@ void cleanup_agent(int agent_id)
   remove_all_supplies_nolock(agent_id);
 
   pthread_mutex_unlock(&shared_data->mutex);
-  printf("DEBUG: Agent %d cleanup complete\n", agent_id);
 }
 
 char *create_supply_response(int agent_id, int all)
