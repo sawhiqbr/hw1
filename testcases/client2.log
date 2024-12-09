@@ -1,9 +1,7 @@
 Client 0: Connecting to Unix domain socket at '/tmp/supdem.sock'
 Client 0: Running script 'testcase2.txt'
-OKOKOKA supply [5,0,0] is inserted at (10,10).
-Your demand at (20,20), [2,2,2] is fulfilled by a client at (10,10).
-A supply [13,13,13] is inserted at (10,10).
-OKOKThere are 0 demands in total.
+OKOKOKOKYour demand at (20,20), [2,2,2] is fulfilled by a client at (50,50).
+OKThere are 0 demands in total.
 X      |Y      |A    |B    |C    |
 -------+-------+-----+-----+-----+
 There are 1 supplies in total.

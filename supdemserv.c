@@ -21,7 +21,6 @@ int main(int argc, char *argv[])
   char *conn = argv[1];
   int map_width = atoi(argv[2]);
   int map_height = atoi(argv[3]);
-  printf("map width: %d, map_height: %d\n", map_width, map_height);
 
   // Initialize shared memory
   init_shared_memory();
@@ -91,11 +90,9 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
 
-  printf("Server listening...\n");
   while (1)
   {
     int client_fd = accept(listen_fd, NULL, NULL);
-    printf("Accepted client connection %d\n", client_fd);
     if (client_fd == -1)
     {
       perror("accept");
