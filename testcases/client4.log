@@ -1,26 +1,26 @@
 Client 0: Connecting to Unix domain socket at '/tmp/supdem.sock'
 Client 0: Running script 'testcase4.txt'
-OKOKOKYour demand at (0,50), [3,3,3] is fulfilled by a client at (10,10).There are 0 demands in total.
+OKOKYour demand at (0,50), [3,3,3] is fulfilled by a client at (99,99).OKThere are 0 demands in total.
 X      |Y      |A    |B    |C    |
 -------+-------+-----+-----+-----+
 There are 1 supplies in total.
 X      |Y      |A    |B    |C    |D      |
 -------+-------+-----+-----+-----+-------+
       0|     50|    3|    3|    3|    200|
-OKYour demand at (0,50), [5,0,0] is fulfilled by a client at (10,10).OKOKThere are 1 demands in total.
+OKYour demand at (0,50), [5,0,0] is fulfilled by a client at (50,50).OKOKThere are 0 demands in total.
 X      |Y      |A    |B    |C    |
 -------+-------+-----+-----+-----+
-     99|     99|   10|   10|   10|
-There are 7 supplies in total.
+There are 8 supplies in total.
 X      |Y      |A    |B    |C    |D      |
 -------+-------+-----+-----+-----+-------+
-     99|     99|    5|   10|   10|    200|
-     10|     10|    8|    8|    8|    200|
+     99|     99|    0|    5|    5|    200|
+     50|     50|    0|    5|    5|    200|
      25|     20|    3|    3|    3|    200|
+     10|     10|    5|    0|    0|    200|
+     10|     10|    3|    3|    3|    200|
       0|     50|    3|    3|    3|    200|
       0|     50|    5|    0|    0|    200|
       0|     50|    5|    0|    0|    200|
-     50|     50|    5|    5|    5|    200|
 There are 0 demands in total.
 X      |Y      |A    |B    |C    |
 -------+-------+-----+-----+-----+
